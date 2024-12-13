@@ -371,3 +371,140 @@ Deno.test("BooleanArray - Performance Characteristics", async (t) => {
     assertEquals(array.getLastSetIndex(), size - 1);
   });
 });
+
+Deno.test("BooleanArray - Static Equals Operation", async (t) => {
+  await t.step("should return true for identical arrays", () => {
+    const a = new BooleanArray(100);
+    const b = new BooleanArray(100);
+    a.setBool(0, true);
+    a.setBool(99, true);
+    b.setBool(0, true);
+    b.setBool(99, true);
+    assertEquals(BooleanArray.equals(a, b), true);
+  });
+
+  await t.step("should return false for different arrays", () => {
+    const a = new BooleanArray(100);
+    const b = new BooleanArray(100);
+    a.setBool(0, true);
+    b.setBool(1, true);
+    assertEquals(BooleanArray.equals(a, b), false);
+  });
+
+  await t.step("should return false for arrays of different sizes", () => {
+    const a = new BooleanArray(100);
+    const b = new BooleanArray(200);
+    assertEquals(BooleanArray.equals(a, b), false);
+  });
+
+  await t.step("should handle empty arrays", () => {
+    const a = new BooleanArray(100);
+    const b = new BooleanArray(100);
+    assertEquals(BooleanArray.equals(a, b), true);
+  });
+
+  await t.step("should handle full arrays", () => {
+    const a = new BooleanArray(100);
+    const b = new BooleanArray(100);
+    a.setAll();
+    b.setAll();
+    assertEquals(BooleanArray.equals(a, b), true);
+  });
+
+  await t.step("should handle arrays with same population but different positions", () => {
+    const a = new BooleanArray(100);
+    const b = new BooleanArray(100);
+    a.setBool(0, true);
+    b.setBool(1, true);
+    assertEquals(BooleanArray.equals(a, b), false);
+    assertEquals(a.getPopulationCount(), b.getPopulationCount());
+  });
+
+  await t.step("should handle chunk boundary cases", () => {
+    const a = new BooleanArray(100);
+    const b = new BooleanArray(100);
+    a.setBool(31, true);
+    a.setBool(32, true);
+    b.setBool(31, true);
+    b.setBool(32, true);
+    assertEquals(BooleanArray.equals(a, b), true);
+  });
+});
+
+Deno.test("BooleanArray - Static Difference Operation", async (t) => {
+  await t.step("should compute basic difference correctly", () => {
+    const a = new BooleanArray(32);
+    const b = new BooleanArray(32);
+
+    a.setBool(0, true);
+    a.setBool(1, true);
+    b.setBool(1, true);
+    b.setBool(2, true);
+
+    const result = BooleanArray.difference(a, b);
+    assertEquals(result.getBool(0), true); // In a but not in b
+    assertEquals(result.getBool(1), false); // In both
+    assertEquals(result.getBool(2), false); // In b but not in a
+  });
+
+  await t.step("should handle empty result case", () => {
+    const a = new BooleanArray(32);
+    const b = new BooleanArray(32);
+
+    a.setBool(0, true);
+    b.setBool(0, true);
+
+    const result = BooleanArray.difference(a, b);
+    assertEquals(result.isEmpty(), true);
+  });
+
+  await t.step("should handle full result case", () => {
+    const a = new BooleanArray(32);
+    const b = new BooleanArray(32);
+
+    a.setAll();
+    // b remains empty
+
+    const result = BooleanArray.difference(a, b);
+    assertEquals([...result.truthyIndices()].length, 32);
+  });
+
+  await t.step("should handle chunk boundary cases", () => {
+    const a = new BooleanArray(100);
+    const b = new BooleanArray(100);
+
+    a.setBool(31, true);
+    a.setBool(32, true);
+    b.setBool(32, true);
+    b.setBool(33, true);
+
+    const result = BooleanArray.difference(a, b);
+    assertEquals(result.getBool(31), true);
+    assertEquals(result.getBool(32), false);
+    assertEquals(result.getBool(33), false);
+  });
+
+  await t.step("should throw on mismatched sizes", () => {
+    const a = new BooleanArray(32);
+    const b = new BooleanArray(64);
+
+    assertThrows(() => BooleanArray.difference(a, b), Error);
+  });
+
+  await t.step("should handle large arrays", () => {
+    const size = 1000;
+    const a = new BooleanArray(size);
+    const b = new BooleanArray(size);
+
+    // Set every even bit in a and every third bit in b
+    for (let i = 0; i < size; i += 2) a.setBool(i, true);
+    for (let i = 0; i < size; i += 3) b.setBool(i, true);
+
+    const result = BooleanArray.difference(a, b);
+
+    // Verify some known positions
+    assertEquals(result.getBool(2), true); // In a (even) but not in b (not third)
+    assertEquals(result.getBool(6), false); // In both (even and third)
+    assertEquals(result.getBool(9), false); // In b (third) but not in result
+  });
+});

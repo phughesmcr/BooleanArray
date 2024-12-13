@@ -629,3 +629,138 @@ Deno.bench({
     }
   },
 });
+
+// Setup arrays for equals and difference benchmarks
+const emptyA = new BooleanArray(1024);
+const emptyB = new BooleanArray(1024);
+
+const sparseA = new BooleanArray(1024);
+const sparseB = new BooleanArray(1024);
+for (let i = 0; i < 1024; i += 32) {
+  sparseA.setBool(i, true);
+  sparseB.setBool(i, true);
+}
+
+const denseA = new BooleanArray(1024);
+const denseB = new BooleanArray(1024);
+denseA.setAll();
+denseB.setAll();
+
+const diffA = new BooleanArray(1024);
+const diffB = new BooleanArray(1024);
+diffA.setRange(0, 512, true);
+diffB.setRange(256, 768, true);
+
+// Large arrays for scaling tests
+const largeA = new BooleanArray(1_000_000);
+const largeB = new BooleanArray(1_000_000);
+for (let i = 0; i < 1_000_000; i += 1000) {
+  largeA.setBool(i, true);
+  largeB.setBool(i, true);
+}
+
+// equals benchmarks
+Deno.bench({
+  name: "equals - empty arrays",
+  group: "equals",
+  baseline: true,
+  fn: () => {
+    BooleanArray.equals(emptyA, emptyB);
+  },
+});
+
+Deno.bench({
+  name: "equals - sparse arrays (identical)",
+  group: "equals",
+  fn: () => {
+    BooleanArray.equals(sparseA, sparseB);
+  },
+});
+
+Deno.bench({
+  name: "equals - dense arrays (identical)",
+  group: "equals",
+  fn: () => {
+    BooleanArray.equals(denseA, denseB);
+  },
+});
+
+Deno.bench({
+  name: "equals - arrays with differences",
+  group: "equals",
+  fn: () => {
+    BooleanArray.equals(diffA, diffB);
+  },
+});
+
+Deno.bench({
+  name: "equals - large arrays (1M bits)",
+  group: "equals",
+  fn: () => {
+    BooleanArray.equals(largeA, largeB);
+  },
+});
+
+// difference benchmarks
+Deno.bench({
+  name: "difference - empty arrays",
+  group: "difference",
+  baseline: true,
+  fn: () => {
+    BooleanArray.difference(emptyA, emptyB);
+  },
+});
+
+Deno.bench({
+  name: "difference - sparse arrays (identical)",
+  group: "difference",
+  fn: () => {
+    BooleanArray.difference(sparseA, sparseB);
+  },
+});
+
+Deno.bench({
+  name: "difference - dense arrays (identical)",
+  group: "difference",
+  fn: () => {
+    BooleanArray.difference(denseA, denseB);
+  },
+});
+
+Deno.bench({
+  name: "difference - arrays with partial overlap",
+  group: "difference",
+  fn: () => {
+    BooleanArray.difference(diffA, diffB);
+  },
+});
+
+Deno.bench({
+  name: "difference - large arrays (1M bits)",
+  group: "difference",
+  fn: () => {
+    BooleanArray.difference(largeA, largeB);
+  },
+});
+
+// Edge cases
+const edgeCaseA = new BooleanArray(33); // Non-aligned size
+const edgeCaseB = new BooleanArray(33);
+edgeCaseA.setBool(32, true);
+edgeCaseB.setBool(32, true);
+
+Deno.bench({
+  name: "equals - non-aligned size",
+  group: "equals-edge",
+  fn: () => {
+    BooleanArray.equals(edgeCaseA, edgeCaseB);
+  },
+});
+
+Deno.bench({
+  name: "difference - non-aligned size",
+  group: "difference-edge",
+  fn: () => {
+    BooleanArray.difference(edgeCaseA, edgeCaseB);
+  },
+});

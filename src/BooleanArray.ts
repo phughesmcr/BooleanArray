@@ -16,6 +16,16 @@ export function and(a: number, b: number): number {
 }
 
 /**
+ * Performs a bitwise difference operation with two numbers
+ * @param a the first number
+ * @param b the second number
+ * @returns the result of the bitwise difference operation
+ */
+export function difference(a: number, b: number): number {
+  return a & ~b;
+}
+
+/**
  * Performs a bitwise NAND operation with two numbers
  * @param a the first number
  * @param b the second number
@@ -132,6 +142,34 @@ export class BooleanArray extends Uint32Array {
    */
   static and(a: BooleanArray, b: BooleanArray): BooleanArray {
     return BooleanArray.operate(a, b, and);
+  }
+
+  /**
+   * Checks if two BooleanArrays are equal
+   * @param a the first BooleanArray
+   * @param b the second BooleanArray
+   * @returns `true` if the arrays are equal, `false` otherwise
+   */
+  static equals(a: BooleanArray, b: BooleanArray): boolean {
+    if (a.size !== b.size) {
+      return false;
+    }
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Performs a bitwise difference operation with two BooleanArrays
+   * @param a the first BooleanArray
+   * @param b the second BooleanArray
+   * @returns a new BooleanArray with the result
+   */
+  static difference(a: BooleanArray, b: BooleanArray): BooleanArray {
+    return BooleanArray.operate(a, b, difference);
   }
 
   /**

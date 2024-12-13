@@ -143,6 +143,18 @@ for (const index of bits.truthyIndices()) {
 | truthyIndices - sparse range (1% set) | 4.0 µs | 250,900 | (3.8 µs … 5.0 µs) | 4.0 µs | 5.0 µs | 5.0 µs |
 | truthyIndices - medium range (50% set) | 52.7 µs | 18,990 | (48.8 µs … 216.6 µs) | 51.1 µs | 103.3 µs | 159.3 µs |
 | truthyIndices - dense range (99% set) | 100.4 µs | 9,958 | (88.5 µs … 367.8 µs) | 93.5 µs | 278.4 µs | 297.0 µs |
+| equals - empty arrays | 8.9 ns | 112,500,000 | (8.2 ns … 42.2 ns) | 8.6 ns | 22.8 ns | 23.2 ns |
+| equals - sparse arrays (identical) | 8.5 ns | 117,800,000 | (8.1 ns … 13.6 ns) | 8.6 ns | 9.7 ns | 10.4 ns |
+| equals - dense arrays (identical) | 8.5 ns | 117,600,000 | (8.2 ns … 19.9 ns) | 8.4 ns | 12.1 ns | 13.8 ns |
+| equals - arrays with differences | 3.0 ns | 331,600,000 | (2.9 ns … 11.0 ns) | 3.0 ns | 5.2 ns | 5.6 ns |
+| equals - large arrays (1M bits) | 41.6 µs | 24,040 | (6.2 µs … 226.1 µs) | 74.3 µs | 78.8 µs | 82.2 µs |
+| difference - empty arrays | 262.2 ns | 3,813,000 | (240.5 ns … 378.8 ns) | 263.5 ns | 352.0 ns | 357.6 ns |
+| difference - sparse arrays (identical) | 259.2 ns | 3,858,000 | (238.9 ns … 607.6 ns) | 262.6 ns | 323.0 ns | 600.2 ns |
+| difference - dense arrays (identical) | 296.1 ns | 3,377,000 | (280.1 ns … 475.6 ns) | 295.9 ns | 443.5 ns | 475.6 ns |
+| difference - arrays with partial overlap | 279.5 ns | 3,578,000 | (262.3 ns … 504.6 ns) | 284.9 ns | 334.1 ns | 504.6 ns |
+| difference - large arrays (1M bits) | 157.8 µs | 6,337 | (138.0 µs … 1.6 ms) | 160.9 µs | 254.3 µs | 429.6 µs |
+| equals - non-aligned size | 3.2 ns | 312,400,000 | (3.0 ns … 5.8 ns) | 3.2 ns | 3.5 ns | 3.7 ns |
+| difference - non-aligned size | 141.5 ns | 7,065,000 | (125.0 ns … 373.3 ns) | 145.6 ns | 291.9 ns | 355.1 ns |
 
 ## Contributing
 
