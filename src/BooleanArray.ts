@@ -86,7 +86,8 @@ export function countChunk(value: number): number {
   return ((value * 0x01010101) >>> 24);
 }
 
-export default class BooleanArray extends Uint32Array {
+/** A fast boolean array backed by a Uint32Array */
+export class BooleanArray extends Uint32Array {
   /** The number of bits per integer */
   static readonly BITS_PER_INT = 32;
 
@@ -596,5 +597,3 @@ export default class BooleanArray extends Uint32Array {
     }
   }
 }
-
-export { BooleanArray };
