@@ -49,7 +49,7 @@ Deno.test("BooleanArray - Range Operations", async (t) => {
 
     array.setRange(10, 20, true);
     const bools = array.getBools(10, 20);
-    assertEquals(bools.every((b) => b === true), true);
+    assertEquals(bools.every((b: boolean) => b === true), true);
     assertEquals(array.getBool(9), false);
     assertEquals(array.getBool(30), false);
   });
@@ -157,10 +157,10 @@ Deno.test("BooleanArray - Iterator", async (t) => {
 
   await t.step("should iterate over truthy indices within specified range", () => {
     const array = new BooleanArray(100);
-    array.setBool(5, true);   // Before range
-    array.setBool(15, true);  // In range
-    array.setBool(25, true);  // In range
-    array.setBool(35, true);  // After range
+    array.setBool(5, true); // Before range
+    array.setBool(15, true); // In range
+    array.setBool(25, true); // In range
+    array.setBool(35, true); // After range
 
     const actualIndices = [...array.truthyIndices(10, 30)];
     assertEquals(actualIndices, [15, 25]);
@@ -197,7 +197,7 @@ Deno.test("BooleanArray - Iterator", async (t) => {
 
   await t.step("should handle dense ranges efficiently", () => {
     const array = new BooleanArray(100);
-    array.setRange(20, 10, true);  // Set bits 20-29
+    array.setRange(20, 10, true); // Set bits 20-29
 
     const actualIndices = [...array.truthyIndices(15, 35)];
     assertEquals(actualIndices, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29]);
