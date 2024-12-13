@@ -343,9 +343,6 @@ export class BooleanArray extends Uint32Array {
    * @returns a new BooleanArray with the same contents
    */
   clone(): BooleanArray {
-    if (this.length > 1024) {
-      return structuredClone<BooleanArray>(this);
-    }
     const copy = new BooleanArray(this.#size);
     copy.set(this);
     return copy;

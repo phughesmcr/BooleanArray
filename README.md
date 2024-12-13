@@ -134,7 +134,7 @@ for (const index of bits.truthyIndices()) {
 | clear - large array                              | 521.5 ns        | 1,918,000    | (516.7 ns … 553.9 ns)         | 521.6 ns  | 534.7 ns | 553.9 ns |
 | clone - small array                              | 147.4 ns        | 6,786,000    | (127.0 ns … 338.6 ns)         | 153.4 ns  | 254.8 ns | 288.2 ns |
 | clone - medium array                             | 165.6 ns        | 6,039,000    | (138.3 ns … 415.4 ns)         | 171.9 ns  | 360.0 ns | 410.4 ns |
-| clone - large array                              | 26.0 µs         | 38,460       | (4.9 µs … 2.0 ms)             | 38.9 µs   | 146.2 µs | 256.1 µs |
+| clone - large array                              | 6.7 µs          | 148,500      | (2.2 µs … 3.0 ms)             | 4.1 µs    | 39.5 µs  | 71.0 µs  |
 | truthyIndices - no range specified | 177.6 µs | 5,629 | (170.3 µs … 297.4 µs) | 176.9 µs | 230.4 µs | 244.2 µs |
 | truthyIndices - small range (100 bits) | 23.5 µs | 42,640 | (22.2 µs … 69.7 µs) | 23.5 µs | 26.5 µs | 29.2 µs |
 | truthyIndices - medium range (10,000 bits) | 24.8 µs | 40,380 | (23.6 µs … 184.7 µs) | 25.0 µs | 29.4 µs | 50.4 µs |
