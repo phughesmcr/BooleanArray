@@ -86,9 +86,9 @@ for (const index of bits.truthyIndices()) {
 | Benchmark                                       | time/iter (avg) | iter/s       | (min … max)                   | p75       | p99      | p995     |
 |-------------------------------------------------|-----------------|--------------|-------------------------------|-----------|----------|----------|
 | truthyIndices iteration                         | 4.8 µs          | 207,300      | (4.6 µs … 6.3 µs)             | 4.7 µs    | 6.3 µs   | 6.3 µs   |
-| BooleanArray creation - small (32 bits)          | 238.5 ns        | 4,194,000    | (129.1 ns … 404.3 ns)         | 348.5 ns  | 398.4 ns | 402.5 ns |
-| BooleanArray creation - medium (1024 bits)       | 195.3 ns        | 5,121,000    | (149.6 ns … 474.5 ns)         | 201.3 ns  | 388.2 ns | 399.0 ns |
-| BooleanArray creation - large (1M bits)          | 27.6 µs         | 36,270       | (1.9 µs … 2.1 ms)             | 24.9 µs   | 193.0 µs | 270.1 µs |
+| BooleanArray creation - small (32 bits)          | 163.1 ns        | 6,132,000    | (118.0 ns … 392.4 ns)         | 162.3 ns  | 383.2 ns | 390.6 ns |
+| BooleanArray creation - medium (1024 bits)       | 188.4 ns        | 5,308,000    | (147.8 ns … 509.4 ns)         | 197.2 ns  | 427.9 ns | 500.5 ns |
+| BooleanArray creation - large (1M bits)          | 20.7 µs         | 48,430       | (1.3 µs … 5.6 ms)             | 23.5 µs   | 105.1 µs | 223.9 µs |
 | getBool - small array                           | 3.2 ns          | 312,800,000  | (2.9 ns … 6.0 ns)             | 3.2 ns    | 3.4 ns   | 3.7 ns   |
 | getBool - medium array                          | 3.2 ns          | 311,000,000  | (3.1 ns … 8.6 ns)             | 3.2 ns    | 3.5 ns   | 4.7 ns   |
 | getBool - large array                           | 3.2 ns          | 312,200,000  | (3.1 ns … 20.2 ns)            | 3.2 ns    | 3.5 ns   | 3.8 ns   |

@@ -125,7 +125,10 @@ export class BooleanArray extends Uint32Array {
   static {
     // Initialize lookup tables
     for (let i = 0; i < 256; i++) {
-      BooleanArray.BIT_COUNT[i] = (i & 1) + BooleanArray.BIT_COUNT[i >>> 1]!;
+      let count = i;
+      count = count - ((count >>> 1) & 0x55);
+      count = (count & 0x33) + ((count >>> 2) & 0x33);
+      BooleanArray.BIT_COUNT[i] = (count + (count >>> 4)) & 0x0F;
     }
     // Initialize masks for parallel bit operations
     for (let i = 0; i < 32; i++) {
