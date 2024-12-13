@@ -531,15 +531,22 @@ export default class BooleanArray extends Uint32Array {
   }
 
   /**
+   * Get the indices of the set bits in the array
+   * @param startIndex the start index to get the indices from [default = 0]
+   * @param endIndex the end index to get the indices from [default = this.size]
    * @returns Iterator of indices where bits are set
    */
-  *truthyIndices(): IterableIterator<number> {
+  *truthyIndices(startIndex: number = 0, endIndex: number = this.#size): IterableIterator<number> {
+    BooleanArray.validateValue(startIndex, this.#size);
+    BooleanArray.validateValue(endIndex, this.#size + 1);
+    if (startIndex >= endIndex) return;
+
     const len = this.length;
-    let i = 0;
+    let i = BooleanArray.getChunk(startIndex);
 
     // Fast path for dense arrays (>75% bits set)
     if (this.getPopulationCount() > (this.#size * 0.75)) {
-      for (let index = 0; index < this.#size; index++) {
+      for (let index = startIndex; index < endIndex; index++) {
         if (this.getBool(index)) yield index;
       }
       return;
@@ -555,8 +562,8 @@ export default class BooleanArray extends Uint32Array {
         if (chunk === BooleanArray.ALL_BITS) {
           for (let k = 0; k < BooleanArray.BITS_PER_INT; k++) {
             const index = baseIndex + k;
-            if (index >= this.#size) return;
-            yield index;
+            if (index >= endIndex) return;
+            if (index >= startIndex) yield index;
           }
           continue;
         }
@@ -565,8 +572,8 @@ export default class BooleanArray extends Uint32Array {
         while (remaining !== 0) {
           const trailingZeros = Math.clz32((remaining & -remaining) >>> 0) ^ 31;
           const index = baseIndex + trailingZeros;
-          if (index >= this.#size) return;
-          yield index;
+          if (index >= endIndex) return;
+          if (index >= startIndex) yield index;
           remaining &= remaining - 1;
         }
       }
@@ -582,8 +589,8 @@ export default class BooleanArray extends Uint32Array {
       while (remaining !== 0) {
         const trailingZeros = Math.clz32((remaining & -remaining) >>> 0) ^ 31;
         const index = baseIndex + trailingZeros;
-        if (index >= this.#size) return;
-        yield index;
+        if (index >= endIndex) return;
+        if (index >= startIndex) yield index;
         remaining &= remaining - 1;
       }
     }

@@ -506,3 +506,126 @@ Deno.bench({
     largeArray.clone();
   },
 });
+
+// Setup arrays for range iteration benchmarks
+const rangeArray = new BooleanArray(1_000_000);
+for (let i = 0; i < 1_000_000; i += 100) {
+  rangeArray.setBool(i, true);
+}
+
+// truthyIndices range benchmarks
+Deno.bench({
+  name: "truthyIndices - no range specified",
+  group: "truthyIndices-range",
+  baseline: true,
+  fn: () => {
+    for (const _index of rangeArray.truthyIndices()) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - small range (100 bits)",
+  group: "truthyIndices-range",
+  fn: () => {
+    for (const _index of rangeArray.truthyIndices(0, 100)) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - medium range (10,000 bits)",
+  group: "truthyIndices-range",
+  fn: () => {
+    for (const _index of rangeArray.truthyIndices(0, 10_000)) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - large range (100,000 bits)",
+  group: "truthyIndices-range",
+  fn: () => {
+    for (const _index of rangeArray.truthyIndices(0, 100_000)) {
+      // Just iterate
+    }
+  },
+});
+
+// Test different range positions
+Deno.bench({
+  name: "truthyIndices - range at start",
+  group: "truthyIndices-position",
+  baseline: true,
+  fn: () => {
+    for (const _index of rangeArray.truthyIndices(0, 1000)) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - range in middle",
+  group: "truthyIndices-position",
+  fn: () => {
+    for (const _index of rangeArray.truthyIndices(500_000, 501_000)) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - range at end",
+  group: "truthyIndices-position",
+  fn: () => {
+    for (const _index of rangeArray.truthyIndices(999_000, 1_000_000)) {
+      // Just iterate
+    }
+  },
+});
+
+// Test different densities within ranges
+const sparseRangeArray = new BooleanArray(100_000);
+const mediumRangeArray = new BooleanArray(100_000);
+const denseRangeArray = new BooleanArray(100_000);
+
+// Set up different densities (1%, 50%, 99% of bits set)
+for (let i = 0; i < 100_000; i++) {
+  if (i % 100 === 0) sparseRangeArray.setBool(i, true);
+  if (i % 2 === 0) mediumRangeArray.setBool(i, true);
+  if (i % 100 !== 0) denseRangeArray.setBool(i, true);
+}
+
+Deno.bench({
+  name: "truthyIndices - sparse range (1% set)",
+  group: "truthyIndices-density",
+  baseline: true,
+  fn: () => {
+    for (const _index of sparseRangeArray.truthyIndices(0, 10_000)) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - medium range (50% set)",
+  group: "truthyIndices-density",
+  fn: () => {
+    for (const _index of mediumRangeArray.truthyIndices(0, 10_000)) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - dense range (99% set)",
+  group: "truthyIndices-density",
+  fn: () => {
+    for (const _index of denseRangeArray.truthyIndices(0, 10_000)) {
+      // Just iterate
+    }
+  },
+});

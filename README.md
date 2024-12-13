@@ -76,6 +76,9 @@ for (const index of bits.truthyIndices()) {
 
 `deno bench` will run a benchmark suite.
 
+* Runtime: Deno 2.1.4 (x86_64-pc-windows-msvc)
+* CPU: AMD Ryzen 9 9900X
+
 | Benchmark                                       | time/iter (avg) | iter/s       | (min … max)                   | p75       | p99      | p995     |
 |-------------------------------------------------|-----------------|--------------|-------------------------------|-----------|----------|----------|
 | truthyIndices iteration                         | 4.8 µs          | 207,300      | (4.6 µs … 6.3 µs)             | 4.7 µs    | 6.3 µs   | 6.3 µs   |
@@ -128,7 +131,16 @@ for (const index of bits.truthyIndices()) {
 | clone - small array                              | 147.4 ns        | 6,786,000    | (127.0 ns … 338.6 ns)         | 153.4 ns  | 254.8 ns | 288.2 ns |
 | clone - medium array                             | 165.6 ns        | 6,039,000    | (138.3 ns … 415.4 ns)         | 171.9 ns  | 360.0 ns | 410.4 ns |
 | clone - large array                              | 26.0 µs         | 38,460       | (4.9 µs … 2.0 ms)             | 38.9 µs   | 146.2 µs | 256.1 µs |
-
+| truthyIndices - no range specified | 177.6 µs | 5,629 | (170.3 µs … 297.4 µs) | 176.9 µs | 230.4 µs | 244.2 µs |
+| truthyIndices - small range (100 bits) | 23.5 µs | 42,640 | (22.2 µs … 69.7 µs) | 23.5 µs | 26.5 µs | 29.2 µs |
+| truthyIndices - medium range (10,000 bits) | 24.8 µs | 40,380 | (23.6 µs … 184.7 µs) | 25.0 µs | 29.4 µs | 50.4 µs |
+| truthyIndices - large range (100,000 bits) | 37.4 µs | 26,720 | (36.6 µs … 172.8 µs) | 37.3 µs | 40.7 µs | 47.6 µs |
+| truthyIndices - range at start | 22.6 µs | 44,290 | (22.3 µs … 198.0 µs) | 22.5 µs | 25.2 µs | 27.9 µs |
+| truthyIndices - range in middle | 23.5 µs | 42,570 | (22.4 µs … 218.1 µs) | 23.6 µs | 26.4 µs | 27.1 µs |
+| truthyIndices - range at end | 23.1 µs | 43,280 | (22.3 µs … 324.9 µs) | 23.5 µs | 26.7 µs | 29.8 µs |
+| truthyIndices - sparse range (1% set) | 4.0 µs | 250,900 | (3.8 µs … 5.0 µs) | 4.0 µs | 5.0 µs | 5.0 µs |
+| truthyIndices - medium range (50% set) | 52.7 µs | 18,990 | (48.8 µs … 216.6 µs) | 51.1 µs | 103.3 µs | 159.3 µs |
+| truthyIndices - dense range (99% set) | 100.4 µs | 9,958 | (88.5 µs … 367.8 µs) | 93.5 µs | 278.4 µs | 297.0 µs |
 
 ## Contributing
 

@@ -143,7 +143,7 @@ Deno.test("BooleanArray - Utility Operations", async (t) => {
 });
 
 Deno.test("BooleanArray - Iterator", async (t) => {
-  await t.step("should iterate over truthy indices", () => {
+  await t.step("should iterate over all truthy indices when no range specified", () => {
     const array = new BooleanArray(100);
     const expectedIndices = [10, 20, 30, 40];
 
@@ -153,6 +153,54 @@ Deno.test("BooleanArray - Iterator", async (t) => {
 
     const actualIndices = [...array.truthyIndices()];
     assertEquals(actualIndices, expectedIndices);
+  });
+
+  await t.step("should iterate over truthy indices within specified range", () => {
+    const array = new BooleanArray(100);
+    array.setBool(5, true);   // Before range
+    array.setBool(15, true);  // In range
+    array.setBool(25, true);  // In range
+    array.setBool(35, true);  // After range
+
+    const actualIndices = [...array.truthyIndices(10, 30)];
+    assertEquals(actualIndices, [15, 25]);
+  });
+
+  await t.step("should handle start index with no end index", () => {
+    const array = new BooleanArray(100);
+    array.setBool(5, true);
+    array.setBool(15, true);
+    array.setBool(25, true);
+
+    const actualIndices = [...array.truthyIndices(10)];
+    assertEquals(actualIndices, [15, 25]);
+  });
+
+  await t.step("should handle empty ranges", () => {
+    const array = new BooleanArray(100);
+    array.setBool(5, true);
+    array.setBool(15, true);
+
+    const actualIndices = [...array.truthyIndices(20, 30)];
+    assertEquals(actualIndices, []);
+  });
+
+  await t.step("should handle ranges at chunk boundaries", () => {
+    const array = new BooleanArray(100);
+    array.setBool(31, true);
+    array.setBool(32, true);
+    array.setBool(33, true);
+
+    const actualIndices = [...array.truthyIndices(31, 33)];
+    assertEquals(actualIndices, [31, 32]);
+  });
+
+  await t.step("should handle dense ranges efficiently", () => {
+    const array = new BooleanArray(100);
+    array.setRange(20, 10, true);  // Set bits 20-29
+
+    const actualIndices = [...array.truthyIndices(15, 35)];
+    assertEquals(actualIndices, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29]);
   });
 });
 
