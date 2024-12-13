@@ -1,11 +1,13 @@
 # BooleanArray
 
-A high-performance boolean array implementation backed by Uint32Array for efficient memory usage and fast bitwise operations.
+A high-performance boolean array (a.k.a. BitSet, BitField, etc.) implementation backed by Uint32Array for efficient memory usage and fast bitwise operations.
 
 <p align="left">
   <img src="https://badgen.net/badge/license/MIT/blue" alt="MIT License" />
   <img src="https://badgen.net/badge/icon/typescript?icon=typescript&label" alt="Written in Typescript">
-  <img src="https://img.shields.io/badge/deno-^2.0.0-lightgrey?logo=deno" alt="Deno version" />
+  <img src="https://img.shields.io/badge/deno-^2.1.0-lightgrey?logo=deno" alt="Deno version" />
+  <img src="https://img.shields.io/badge/bun-%5E1.1.0-lightgrey?logo=bun" alt="Bun version" />
+  <img src="https://img.shields.io/badge/node-%5E22.0.0-lightgrey?logo=node.js" alt="Node version" />
 </p>
 
 ## Installation
@@ -42,7 +44,7 @@ import { BooleanArray } from "@phughesmcr/booleanarray";
 
 ## Usage
 
-`Deno task example` will run a complete example.
+`deno task example` will run a complete example.
 
 ```ts
 // Create a boolean array with 1000 bits
