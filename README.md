@@ -10,6 +10,8 @@ A high-performance boolean array (a.k.a. BitSet, BitField, etc.) implementation 
   <img src="https://img.shields.io/badge/node-%5E22.0.0-lightgrey?logo=node.js" alt="Node version" />
 </p>
 
+See [jsr.io/@phughesmcr/booleanarray](https://jsr.io/@phughesmcr/booleanarray) for complete documentation.
+
 ## Installation
 
 ### Node
