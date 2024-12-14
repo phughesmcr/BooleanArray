@@ -558,7 +558,7 @@ Deno.test("BooleanArray - getFirstSetIndex with startIndex", async (t) => {
 
   await t.step("should throw on invalid startIndex", () => {
     const array = new BooleanArray(100);
-    
+
     assertThrows(() => array.getFirstSetIndex(-1), RangeError);
     assertThrows(() => array.getFirstSetIndex(100), RangeError);
     assertThrows(() => array.getFirstSetIndex(1.5), TypeError);
@@ -568,7 +568,7 @@ Deno.test("BooleanArray - getFirstSetIndex with startIndex", async (t) => {
   await t.step("should handle sparse bit patterns", () => {
     const array = new BooleanArray(1000);
     const indices = [100, 500, 900];
-    
+
     for (const index of indices) {
       array.setBool(index, true);
     }
@@ -587,5 +587,109 @@ Deno.test("BooleanArray - getFirstSetIndex with startIndex", async (t) => {
     assertEquals(array.getFirstSetIndex(20), 20);
     assertEquals(array.getFirstSetIndex(25), 25);
     assertEquals(array.getFirstSetIndex(30), -1);
+  });
+});
+
+Deno.test("BooleanArray - getLastSetIndex with startIndex", async (t) => {
+  await t.step("should find last set bit before startIndex", () => {
+    const array = new BooleanArray(100);
+    array.setBool(10, true);
+    array.setBool(20, true);
+    array.setBool(30, true);
+
+    assertEquals(array.getLastSetIndex(31), 30);
+    assertEquals(array.getLastSetIndex(30), 20);
+    assertEquals(array.getLastSetIndex(20), 10);
+    assertEquals(array.getLastSetIndex(10), -1);
+  });
+
+  await t.step("should handle chunk boundaries", () => {
+    const array = new BooleanArray(100);
+    array.setBool(31, true);
+    array.setBool(32, true);
+    array.setBool(33, true);
+
+    assertEquals(array.getLastSetIndex(34), 33);
+    assertEquals(array.getLastSetIndex(33), 32);
+    assertEquals(array.getLastSetIndex(32), 31);
+    assertEquals(array.getLastSetIndex(31), -1);
+  });
+
+  await t.step("should return -1 when no set bits before startIndex", () => {
+    const array = new BooleanArray(100);
+    array.setBool(50, true);
+    array.setBool(60, true);
+
+    assertEquals(array.getLastSetIndex(40), -1);
+  });
+
+  await t.step("should handle empty array", () => {
+    const array = new BooleanArray(100);
+    assertEquals(array.getLastSetIndex(), -1);
+    assertEquals(array.getLastSetIndex(50), -1);
+  });
+
+  await t.step("should handle full array", () => {
+    const array = new BooleanArray(100);
+    array.setAll();
+
+    assertEquals(array.getLastSetIndex(), 99);
+    assertEquals(array.getLastSetIndex(100), 99);
+    assertEquals(array.getLastSetIndex(50), 49);
+    assertEquals(array.getLastSetIndex(1), 0);
+  });
+
+  await t.step("should throw on invalid startIndex", () => {
+    const array = new BooleanArray(100);
+    
+    assertThrows(() => array.getLastSetIndex(-1), RangeError);
+    assertThrows(() => array.getLastSetIndex(101), RangeError);
+    assertThrows(() => array.getLastSetIndex(1.5), TypeError);
+    assertThrows(() => array.getLastSetIndex(NaN), TypeError);
+  });
+
+  await t.step("should handle sparse bit patterns", () => {
+    const array = new BooleanArray(1000);
+    const indices = [100, 500, 900];
+    
+    for (const index of indices) {
+      array.setBool(index, true);
+    }
+
+    assertEquals(array.getLastSetIndex(1000), 900);
+    assertEquals(array.getLastSetIndex(901), 900);
+    assertEquals(array.getLastSetIndex(900), 500);
+    assertEquals(array.getLastSetIndex(500), 100);
+    assertEquals(array.getLastSetIndex(100), -1);
+  });
+
+  await t.step("should handle dense bit patterns", () => {
+    const array = new BooleanArray(100);
+    array.setRange(20, 10, true); // Set bits 20-29
+
+    assertEquals(array.getLastSetIndex(30), 29);
+    assertEquals(array.getLastSetIndex(25), 24);
+    assertEquals(array.getLastSetIndex(20), -1);
+  });
+
+  await t.step("should handle startIndex at exact set bit positions", () => {
+    const array = new BooleanArray(100);
+    array.setBool(10, true);
+    array.setBool(20, true);
+    array.setBool(30, true);
+
+    assertEquals(array.getLastSetIndex(31), 30);
+    assertEquals(array.getLastSetIndex(30), 20);
+    assertEquals(array.getLastSetIndex(20), 10);
+  });
+
+  await t.step("should handle large arrays with startIndex", () => {
+    const size = 100_000;
+    const array = new BooleanArray(size);
+    array.setAll();
+
+    assertEquals(array.getLastSetIndex(size), size - 1);
+    assertEquals(array.getLastSetIndex(size - 1), size - 2);
+    assertEquals(array.getLastSetIndex(32), 31);
   });
 });

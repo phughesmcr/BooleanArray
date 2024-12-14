@@ -400,17 +400,39 @@ export class BooleanArray extends Uint32Array {
 
   /**
    * Get the index of the last set bit
+   * @param startIndex the index to start searching from [default = this.size]
    * @returns the index of the last set bit, or -1 if no bits are set
    */
-  getLastSetIndex(): number {
-    for (let i = this.length - 1; i >= 0; i--) {
+  getLastSetIndex(startIndex: number = this.#size): number {
+    BooleanArray.validateValue(startIndex, this.#size + 1);
+
+    // Adjust startIndex to be within bounds
+    const effectiveStart = Math.min(startIndex, this.#size);
+
+    // Get the chunk containing startIndex
+    const startChunk = BooleanArray.getChunk(effectiveStart - 1);
+
+    // Handle first chunk
+    const firstOffset = effectiveStart & BooleanArray.CHUNK_MASK;
+    const chunk = this[startChunk]!;
+    if (chunk !== 0) {
+      const mask = firstOffset === 0 ? BooleanArray.ALL_BITS : ((1 << firstOffset) - 1) >>> 0;
+      const maskedChunk = chunk & mask;
+      if (maskedChunk !== 0) {
+        const bitPos = 31 - Math.clz32(maskedChunk);
+        return (startChunk << BooleanArray.CHUNK_SHIFT) + bitPos;
+      }
+    }
+
+    // Search remaining chunks backwards
+    for (let i = startChunk - 1; i >= 0; i--) {
       const chunk = this[i]!;
       if (chunk !== 0) {
         const bitPos = 31 - Math.clz32(chunk);
-        const index = (i << BooleanArray.CHUNK_SHIFT) + bitPos;
-        return index < this.#size ? index : -1;
+        return (i << BooleanArray.CHUNK_SHIFT) + bitPos;
       }
     }
+
     return -1;
   }
 

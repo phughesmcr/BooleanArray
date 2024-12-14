@@ -867,3 +867,106 @@ Deno.bench({
     startIndexArray.getFirstSetIndex(500_000);
   },
 });
+
+// Setup arrays for getLastSetIndex with startIndex benchmarks
+const lastIndexArray = new BooleanArray(1_000_000);
+for (let i = 0; i < 1_000_000; i += 1000) {
+  lastIndexArray.setBool(i, true);
+}
+
+const denseLastIndexArray = new BooleanArray(1_000_000);
+denseLastIndexArray.setAll();
+
+const lastIndexBoundaryArray = new BooleanArray(1024);
+lastIndexBoundaryArray.setBool(31, true);
+lastIndexBoundaryArray.setBool(32, true);
+lastIndexBoundaryArray.setBool(63, true);
+lastIndexBoundaryArray.setBool(64, true);
+
+// getLastSetIndex with startIndex benchmarks
+Deno.bench({
+  name: "getLastSetIndex(startIndex) - end of array",
+  group: "getLastSetIndex-start",
+  baseline: true,
+  fn: () => {
+    lastIndexArray.getLastSetIndex(1_000_000);
+  },
+});
+
+Deno.bench({
+  name: "getLastSetIndex(startIndex) - middle of array",
+  group: "getLastSetIndex-start",
+  fn: () => {
+    lastIndexArray.getLastSetIndex(500_000);
+  },
+});
+
+Deno.bench({
+  name: "getLastSetIndex(startIndex) - start of array",
+  group: "getLastSetIndex-start",
+  fn: () => {
+    lastIndexArray.getLastSetIndex(1000);
+  },
+});
+
+// Test with different densities
+Deno.bench({
+  name: "getLastSetIndex(startIndex) - sparse array",
+  group: "getLastSetIndex-density",
+  baseline: true,
+  fn: () => {
+    lastIndexArray.getLastSetIndex(500_000);
+  },
+});
+
+Deno.bench({
+  name: "getLastSetIndex(startIndex) - dense array",
+  group: "getLastSetIndex-density",
+  fn: () => {
+    denseLastIndexArray.getLastSetIndex(500_000);
+  },
+});
+
+// Test chunk boundary cases
+Deno.bench({
+  name: "getLastSetIndex(startIndex) - at chunk boundary",
+  group: "getLastSetIndex-boundary",
+  baseline: true,
+  fn: () => {
+    lastIndexBoundaryArray.getLastSetIndex(32);
+  },
+});
+
+Deno.bench({
+  name: "getLastSetIndex(startIndex) - across chunk boundary",
+  group: "getLastSetIndex-boundary",
+  fn: () => {
+    lastIndexBoundaryArray.getLastSetIndex(33);
+  },
+});
+
+// Test with different array sizes
+Deno.bench({
+  name: "getLastSetIndex(startIndex) - small array (32 bits)",
+  group: "getLastSetIndex-size",
+  baseline: true,
+  fn: () => {
+    sparseSmallArray.getLastSetIndex(16);
+  },
+});
+
+Deno.bench({
+  name: "getLastSetIndex(startIndex) - medium array (1024 bits)",
+  group: "getLastSetIndex-size",
+  fn: () => {
+    sparseMediumArray.getLastSetIndex(512);
+  },
+});
+
+Deno.bench({
+  name: "getLastSetIndex(startIndex) - large array (1M bits)",
+  group: "getLastSetIndex-size",
+  fn: () => {
+    lastIndexArray.getLastSetIndex(500_000);
+  },
+});
