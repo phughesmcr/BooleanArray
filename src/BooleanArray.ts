@@ -420,28 +420,17 @@ export class BooleanArray extends Uint32Array {
    */
   getPopulationCount(): number {
     let count = 0;
-    const len = this.length;
-    let i = 0;
+    const lastIndex = this.length - 1;
 
-    // Process in chunks of 8 for better vectorization
-    for (; i + 7 < len - 1; i += 8) {
-      count += countChunk(this[i]!) + countChunk(this[i + 1]!) +
-        countChunk(this[i + 2]!) + countChunk(this[i + 3]!) +
-        countChunk(this[i + 4]!) + countChunk(this[i + 5]!) +
-        countChunk(this[i + 6]!) + countChunk(this[i + 7]!);
-    }
-
-    // Handle remaining full chunks
-    for (; i < len - 1; i++) {
+    // Count all full chunks
+    for (let i = 0; i < lastIndex; i++) {
       count += countChunk(this[i]!);
     }
 
-    // Handle last chunk with proper masking
-    if (len > 0) {
-      const lastChunkBits = this.size & BooleanArray.CHUNK_MASK;
-      const lastChunkMask = lastChunkBits === 0 ? BooleanArray.ALL_BITS : ((1 << lastChunkBits) - 1) >>> 0;
-      count += countChunk(this[len - 1]! & lastChunkMask);
-    }
+    // Handle last chunk
+    const remainingBits = this.#size % BooleanArray.BITS_PER_INT;
+    const lastChunkMask = remainingBits === 0 ? BooleanArray.ALL_BITS : ((1 << remainingBits) - 1) >>> 0;
+    count += countChunk(this[lastIndex]! & lastChunkMask);
 
     return count;
   }
@@ -478,7 +467,17 @@ export class BooleanArray extends Uint32Array {
    * @returns `this` for chaining
    */
   setAll(): this {
+    // Fill all chunks with ALL_BITS
     this.fill(BooleanArray.ALL_BITS);
+
+    // Mask off any excess bits in the last chunk if needed
+    const remainingBits = this.#size % BooleanArray.BITS_PER_INT;
+    if (remainingBits > 0) {
+      const lastIndex = this.length - 1;
+      const mask = ((1 << remainingBits) - 1) >>> 0;
+      this[lastIndex] = mask;
+    }
+
     return this;
   }
 

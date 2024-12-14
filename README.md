@@ -101,13 +101,13 @@ for (const index of bits.truthyIndices()) {
 | setRange(32 bits) - small array                 | 6.3 ns          | 158,200,000  | (6.0 ns … 12.8 ns)            | 6.4 ns    | 6.8 ns   | 8.0 ns    |
 | setRange(1024 bits) - medium array              | 12.6 ns         | 79,400,000   | (12.3 ns … 18.7 ns)           | 12.6 ns   | 14.9 ns  | 16.1 ns   |
 | setRange(1M bits) - large array                 | 520.8 ns        | 1,920,000    | (511.0 ns … 545.5 ns)         | 525.0 ns  | 538.6 ns | 545.5 ns  |
-| getPopulationCount - small array (empty)        | 4.0 ns          | 250,300,000  | (3.8 ns … 10.7 ns)            | 4.0 ns    | 4.3 ns   | 4.7 ns    |
-| getPopulationCount - small array (sparse)       | 4.0 ns          | 248,200,000  | (3.8 ns … 11.7 ns)            | 4.0 ns    | 5.0 ns   | 6.5 ns    |
-| getPopulationCount - small array (dense)        | 4.0 ns          | 252,500,000  | (3.8 ns … 9.9 ns)             | 4.0 ns    | 4.3 ns   | 5.6 ns    |
-| getPopulationCount - medium array (sparse)      | 82.5 ns         | 12,120,000   | (76.7 ns … 125.0 ns)          | 84.4 ns   | 119.2 ns | 120.1 ns  |
-| getPopulationCount - medium array (dense)       | 152.7 ns        | 6,550,000    | (132.9 ns … 404.7 ns)         | 142.4 ns  | 384.5 ns | 389.9 ns  |
-| getPopulationCount - large array (sparse)       | 22.6 µs         | 44,160       | (22.2 µs … 335.7 µs)          | 22.4 µs   | 28.6 µs  | 30.5 µs   |
-| getPopulationCount - large array (dense)        | 22.5 µs         | 44,460       | (22.1 µs … 86.9 µs)           | 22.3 µs   | 25.5 µs  | 29.9 µs   |
+| getPopulationCount - small array (empty)        | 3.0 ns          | 338,300,000  | (2.6 ns … 10.7 ns)            | 3.0 ns    | 3.4 ns   | 4.5 ns    |
+| getPopulationCount - small array (sparse)       | 3.1 ns          | 327,400,000  | (2.6 ns … 9.3 ns)             | 3.0 ns    | 5.6 ns   | 5.7 ns    |
+| getPopulationCount - small array (dense)        | 3.0 ns          | 338,300,000  | (2.6 ns … 8.7 ns)             | 3.0 ns    | 3.4 ns   | 4.5 ns    |
+| getPopulationCount - medium array (sparse)      | 25.0 ns         | 40,010,000   | (24.6 ns … 53.7 ns)           | 24.9 ns   | 26.0 ns  | 26.5 ns   |
+| getPopulationCount - medium array (dense)       | 24.9 ns         | 40,100,000   | (24.5 ns … 32.6 ns)           | 24.9 ns   | 27.1 ns  | 28.2 ns   |
+| getPopulationCount - large array (sparse)       | 23.5 µs         | 42,470       | (22.2 µs … 89.0 µs)           | 24.8 µs   | 26.5 µs  | 34.6 µs   |
+| getPopulationCount - large array (dense)        | 23.9 µs         | 41,860       | (22.4 µs … 57.2 µs)           | 24.9 µs   | 29.4 µs  | 46.9 µs   |
 | BooleanArray.and()                              | 173.3 ns        | 5,771,000    | (148.2 ns … 450.6 ns)         | 179.1 ns  | 376.2 ns | 409.6 ns  |
 | BooleanArray.or()                               | 287.5 ns        | 3,478,000    | (251.4 ns … 704.3 ns)         | 273.8 ns  | 629.5 ns | 704.3 ns  |
 | BooleanArray.xor()                              | 285.5 ns        | 3,503,000    | (258.2 ns … 902.6 ns)         | 284.1 ns  | 655.5 ns | 902.6 ns  |
