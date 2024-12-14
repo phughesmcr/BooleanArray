@@ -98,44 +98,27 @@ export function countChunk(value: number): number {
 
 /** A fast boolean array backed by a Uint32Array */
 export class BooleanArray extends Uint32Array {
+  // Config
+
+  /** The threshold for what is considered a large array */
+  static LARGE_RANGE_THRESHOLD = 1024;
+
+  /** The threshold for what is considered a dense array */
+  static DENSE_ARRAY_THRESHOLD = 0.75;
+
+  // Static values
+
   /** The number of bits per integer */
-  static readonly BITS_PER_INT = 32;
+  static readonly BITS_PER_INT = 32 as const;
 
   /** The mask for the chunk offset */
-  static readonly CHUNK_MASK = 31;
+  static readonly CHUNK_MASK = 31 as const;
 
   /** The shift for the chunk offset */
-  static readonly CHUNK_SHIFT = 5;
+  static readonly CHUNK_SHIFT = 5 as const;
 
-  /** The mask for all bits */
-  static readonly ALL_BITS = ~0 >>> 0;
-
-  // Pre-computed tables aligned for SIMD
-
-  /** The masks for parallel bit operations */
-  static readonly MASKS: Uint32Array = new Uint32Array(32);
-
-  /** The bit count lookup table */
-  static readonly BIT_COUNT: Uint8Array = new Uint8Array(256);
-
-  /** The parallel bits lookup table */
-  static readonly PARALLEL_BITS: Uint32Array = new Uint32Array(32);
-
-  // Initialize lookup tables
-  static {
-    // Initialize lookup tables
-    for (let i = 0; i < 256; i++) {
-      let count = i;
-      count = count - ((count >>> 1) & 0x55);
-      count = (count & 0x33) + ((count >>> 2) & 0x33);
-      BooleanArray.BIT_COUNT[i] = (count + (count >>> 4)) & 0x0F;
-    }
-    // Initialize masks for parallel bit operations
-    for (let i = 0; i < 32; i++) {
-      BooleanArray.MASKS[i] = (1 << i) - 1;
-      BooleanArray.PARALLEL_BITS[i] = (BooleanArray.ALL_BITS / ((1 << i) + 1)) & BooleanArray.ALL_BITS;
-    }
-  }
+  /** The mask for all bits (~0 >>> 0) */
+  static readonly ALL_BITS = 4294967295 as const;
 
   /**
    * Performs a bitwise AND operation with two BooleanArrays
@@ -270,14 +253,14 @@ export class BooleanArray extends Uint32Array {
    * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length|MDN}
    */
   static validateValue(value: number, maxSize?: number): number {
-    if (typeof value !== "number" || !Number.isSafeInteger(value)) {
+    if (typeof value !== "number" || Number.isNaN(value) || !Number.isSafeInteger(value)) {
       throw new TypeError('"value" must be a safe integer.');
     }
     if (value < 0) {
       throw new RangeError('"value" must be greater than or equal to 0.');
     }
     if (value > BooleanArray.ALL_BITS) {
-      throw new RangeError('"value" must be smaller than or equal to 4294967295.');
+      throw new RangeError(`"value" must be smaller than or equal to ${BooleanArray.ALL_BITS}.`);
     }
     if (maxSize !== undefined && value >= maxSize) {
       throw new RangeError(
@@ -424,22 +407,23 @@ export class BooleanArray extends Uint32Array {
     let i = 0;
 
     // Process in chunks of 8 for better vectorization
-    for (; i + 7 < len; i += 8) {
+    for (; i + 7 < len - 1; i += 8) {
       count += countChunk(this[i]!) + countChunk(this[i + 1]!) +
         countChunk(this[i + 2]!) + countChunk(this[i + 3]!) +
         countChunk(this[i + 4]!) + countChunk(this[i + 5]!) +
         countChunk(this[i + 6]!) + countChunk(this[i + 7]!);
     }
 
-    // Handle remaining chunks
-    for (; i < len; i++) {
-      if (i === len - 1) {
-        const validBits = this.size % BooleanArray.BITS_PER_INT;
-        const mask = validBits === 0 ? BooleanArray.ALL_BITS : ((1 << validBits) - 1) >>> 0;
-        count += countChunk(this[i]! & mask);
-      } else {
-        count += countChunk(this[i]!);
-      }
+    // Handle remaining full chunks
+    for (; i < len - 1; i++) {
+      count += countChunk(this[i]!);
+    }
+
+    // Handle last chunk with proper masking
+    if (len > 0) {
+      const lastChunkBits = this.size & BooleanArray.CHUNK_MASK;
+      const lastChunkMask = lastChunkBits === 0 ? BooleanArray.ALL_BITS : ((1 << lastChunkBits) - 1) >>> 0;
+      count += countChunk(this[len - 1]! & lastChunkMask);
     }
 
     return count;
@@ -517,7 +501,7 @@ export class BooleanArray extends Uint32Array {
     }
 
     // Fast path for large ranges
-    if (count > 1024) {
+    if (count > BooleanArray.LARGE_RANGE_THRESHOLD) {
       const fillValue = value ? BooleanArray.ALL_BITS : 0;
       this.fill(fillValue, startIndex >>> 5, (startIndex + count + 31) >>> 5);
       return this;
@@ -584,7 +568,7 @@ export class BooleanArray extends Uint32Array {
     let i = BooleanArray.getChunk(startIndex);
 
     // Fast path for dense arrays (>75% bits set)
-    if (this.getPopulationCount() > (this.#size * 0.75)) {
+    if (this.getPopulationCount() > (this.#size * BooleanArray.DENSE_ARRAY_THRESHOLD)) {
       for (let index = startIndex; index < endIndex; index++) {
         if (this.getBool(index)) yield index;
       }
@@ -609,7 +593,7 @@ export class BooleanArray extends Uint32Array {
 
         let remaining = chunk;
         while (remaining !== 0) {
-          const trailingZeros = Math.clz32((remaining & -remaining) >>> 0) ^ 31;
+          const trailingZeros = Math.clz32((remaining & -remaining) >>> 0) ^ BooleanArray.CHUNK_MASK;
           const index = baseIndex + trailingZeros;
           if (index >= endIndex) return;
           if (index >= startIndex) yield index;
@@ -626,7 +610,7 @@ export class BooleanArray extends Uint32Array {
       const baseIndex = i << BooleanArray.CHUNK_SHIFT;
       let remaining = chunk;
       while (remaining !== 0) {
-        const trailingZeros = Math.clz32((remaining & -remaining) >>> 0) ^ 31;
+        const trailingZeros = Math.clz32((remaining & -remaining) >>> 0) ^ BooleanArray.CHUNK_MASK;
         const index = baseIndex + trailingZeros;
         if (index >= endIndex) return;
         if (index >= startIndex) yield index;
