@@ -764,3 +764,106 @@ Deno.bench({
     BooleanArray.difference(edgeCaseA, edgeCaseB);
   },
 });
+
+// Setup arrays for getFirstSetIndex with startIndex benchmarks
+const startIndexArray = new BooleanArray(1_000_000);
+for (let i = 0; i < 1_000_000; i += 1000) {
+  startIndexArray.setBool(i, true);
+}
+
+const denseStartIndexArray = new BooleanArray(1_000_000);
+denseStartIndexArray.setAll();
+
+const chunkBoundaryArray = new BooleanArray(1024);
+chunkBoundaryArray.setBool(31, true);
+chunkBoundaryArray.setBool(32, true);
+chunkBoundaryArray.setBool(63, true);
+chunkBoundaryArray.setBool(64, true);
+
+// getFirstSetIndex with startIndex benchmarks
+Deno.bench({
+  name: "getFirstSetIndex(startIndex) - start of array",
+  group: "getFirstSetIndex-start",
+  baseline: true,
+  fn: () => {
+    startIndexArray.getFirstSetIndex(0);
+  },
+});
+
+Deno.bench({
+  name: "getFirstSetIndex(startIndex) - middle of array",
+  group: "getFirstSetIndex-start",
+  fn: () => {
+    startIndexArray.getFirstSetIndex(500_000);
+  },
+});
+
+Deno.bench({
+  name: "getFirstSetIndex(startIndex) - end of array",
+  group: "getFirstSetIndex-start",
+  fn: () => {
+    startIndexArray.getFirstSetIndex(999_000);
+  },
+});
+
+// Test with different densities
+Deno.bench({
+  name: "getFirstSetIndex(startIndex) - sparse array",
+  group: "getFirstSetIndex-density",
+  baseline: true,
+  fn: () => {
+    startIndexArray.getFirstSetIndex(500_000);
+  },
+});
+
+Deno.bench({
+  name: "getFirstSetIndex(startIndex) - dense array",
+  group: "getFirstSetIndex-density",
+  fn: () => {
+    denseStartIndexArray.getFirstSetIndex(500_000);
+  },
+});
+
+// Test chunk boundary cases
+Deno.bench({
+  name: "getFirstSetIndex(startIndex) - at chunk boundary",
+  group: "getFirstSetIndex-boundary",
+  baseline: true,
+  fn: () => {
+    chunkBoundaryArray.getFirstSetIndex(31);
+  },
+});
+
+Deno.bench({
+  name: "getFirstSetIndex(startIndex) - across chunk boundary",
+  group: "getFirstSetIndex-boundary",
+  fn: () => {
+    chunkBoundaryArray.getFirstSetIndex(32);
+  },
+});
+
+// Test with different array sizes
+Deno.bench({
+  name: "getFirstSetIndex(startIndex) - small array (32 bits)",
+  group: "getFirstSetIndex-size",
+  baseline: true,
+  fn: () => {
+    sparseSmallArray.getFirstSetIndex(16);
+  },
+});
+
+Deno.bench({
+  name: "getFirstSetIndex(startIndex) - medium array (1024 bits)",
+  group: "getFirstSetIndex-size",
+  fn: () => {
+    sparseMediumArray.getFirstSetIndex(512);
+  },
+});
+
+Deno.bench({
+  name: "getFirstSetIndex(startIndex) - large array (1M bits)",
+  group: "getFirstSetIndex-size",
+  fn: () => {
+    startIndexArray.getFirstSetIndex(500_000);
+  },
+});
