@@ -120,6 +120,9 @@ export class BooleanArray extends Uint32Array {
   /** The mask for all bits (~0 >>> 0) */
   static readonly ALL_BITS = 4294967295 as const;
 
+  /** The maximum safe size for bit operations */
+  static readonly MAX_SAFE_SIZE = 536870911 as const; // Math.floor((2 ** 32 - 1) / 8);
+
   /**
    * Performs a bitwise AND operation with two BooleanArrays
    * @param a the first BooleanArray
@@ -156,6 +159,23 @@ export class BooleanArray extends Uint32Array {
    */
   static difference(a: BooleanArray, b: BooleanArray): BooleanArray {
     return BooleanArray.operate(a, b, difference);
+  }
+
+  /**
+   * Create a BooleanArray from an array of numbers, each number representing a bit to set to true.
+   * @param arr The array of numbers to create the BooleanArray from
+   * @param size The size of the BooleanArray
+   * @returns A new BooleanArray instance
+   */
+  static fromArray(arr: Array<number>, size: number): BooleanArray {
+    const pool = new BooleanArray(size);
+    if (arr.some((n) => typeof n !== "number" || isNaN(n))) {
+      throw new TypeError("BitPool.fromArray: array contains non-number or NaN values");
+    }
+    for (let i = 0; i < arr.length; i++) {
+      pool.setBool(arr[i]!, true);
+    }
+    return pool;
   }
 
   /**
@@ -249,8 +269,7 @@ export class BooleanArray extends Uint32Array {
    * @param value the value to validate
    * @returns the validated value
    * @throws {TypeError} if `value` is not a safe integer
-   * @throws {RangeError} if `value` is less than 1, or is greater than 0xffffffff (2 ** 32 - 1) === (4294967295)
-   * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Invalid_array_length|MDN}
+   * @throws {RangeError} if `value` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
    */
   static validateValue(value: number, maxSize?: number): number {
     if (typeof value !== "number" || Number.isNaN(value) || !Number.isSafeInteger(value)) {
@@ -259,8 +278,8 @@ export class BooleanArray extends Uint32Array {
     if (value < 0) {
       throw new RangeError('"value" must be greater than or equal to 0.');
     }
-    if (value > BooleanArray.ALL_BITS) {
-      throw new RangeError(`"value" must be smaller than or equal to ${BooleanArray.ALL_BITS}.`);
+    if (value > BooleanArray.MAX_SAFE_SIZE) {
+      throw new RangeError(`"value" must be smaller than or equal to ${BooleanArray.MAX_SAFE_SIZE}.`);
     }
     if (maxSize !== undefined && value >= maxSize) {
       throw new RangeError(

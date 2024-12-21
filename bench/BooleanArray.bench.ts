@@ -970,3 +970,168 @@ Deno.bench({
     lastIndexArray.getLastSetIndex(500_000);
   },
 });
+
+// fromArray benchmarks setup
+const smallIndices = [0, 15, 31];
+const mediumIndices = Array.from({ length: 32 }, (_, i) => i * 32);
+const largeIndices = Array.from({ length: 1000 }, (_, i) => i * 1000);
+const denseIndices = Array.from({ length: 1000 }, (_, i) => i);
+
+// fromArray benchmarks
+Deno.bench({
+  name: "fromArray - small sparse array (3 bits)",
+  group: "fromArray",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromArray(smallIndices, 32);
+  },
+});
+
+Deno.bench({
+  name: "fromArray - medium sparse array (32 bits)",
+  group: "fromArray",
+  fn: () => {
+    BooleanArray.fromArray(mediumIndices, 1024);
+  },
+});
+
+Deno.bench({
+  name: "fromArray - large sparse array (1000 bits)",
+  group: "fromArray",
+  fn: () => {
+    BooleanArray.fromArray(largeIndices, 1_000_000);
+  },
+});
+
+Deno.bench({
+  name: "fromArray - dense consecutive indices (1000 bits)",
+  group: "fromArray",
+  fn: () => {
+    BooleanArray.fromArray(denseIndices, 1_000_000);
+  },
+});
+
+// Test different patterns
+const randomIndices = Array.from({ length: 1000 }, () => Math.floor(Math.random() * 1_000_000));
+const clusterIndices = Array.from({ length: 1000 }, (_, i) => Math.floor(i / 10) * 100 + (i % 10));
+
+Deno.bench({
+  name: "fromArray - random indices (1000 bits)",
+  group: "fromArray-patterns",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromArray(randomIndices, 1_000_000);
+  },
+});
+
+Deno.bench({
+  name: "fromArray - clustered indices (1000 bits)",
+  group: "fromArray-patterns",
+  fn: () => {
+    BooleanArray.fromArray(clusterIndices, 1_000_000);
+  },
+});
+
+// Test different array sizes with same density
+const size1k = Array.from({ length: 100 }, (_, i) => i * 10);
+const size10k = Array.from({ length: 1000 }, (_, i) => i * 10);
+const size100k = Array.from({ length: 10000 }, (_, i) => i * 10);
+const size1m = Array.from({ length: 100000 }, (_, i) => i * 10);
+
+Deno.bench({
+  name: "fromArray - 1K size (10% density)",
+  group: "fromArray-scaling",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromArray(size1k, 1000);
+  },
+});
+
+Deno.bench({
+  name: "fromArray - 10K size (10% density)",
+  group: "fromArray-scaling",
+  fn: () => {
+    BooleanArray.fromArray(size10k, 10_000);
+  },
+});
+
+Deno.bench({
+  name: "fromArray - 100K size (10% density)",
+  group: "fromArray-scaling",
+  fn: () => {
+    BooleanArray.fromArray(size100k, 100_000);
+  },
+});
+
+Deno.bench({
+  name: "fromArray - 1M size (10% density)",
+  group: "fromArray-scaling",
+  fn: () => {
+    BooleanArray.fromArray(size1m, 1_000_000);
+  },
+});
+
+// Test edge cases
+const edgeCaseIndices = [31, 32, 63, 64]; // Chunk boundaries
+const maxSizeIndices = [0, BooleanArray.MAX_SAFE_SIZE - 2, BooleanArray.MAX_SAFE_SIZE - 1];
+
+Deno.bench({
+  name: "fromArray - chunk boundary indices",
+  group: "fromArray-edge",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromArray(edgeCaseIndices, 100);
+  },
+});
+
+Deno.bench({
+  name: "fromArray - maximum safe size",
+  group: "fromArray-edge",
+  fn: () => {
+    BooleanArray.fromArray(maxSizeIndices, BooleanArray.MAX_SAFE_SIZE);
+  },
+});
+
+// Compare with alternative methods
+const comparisonIndices = Array.from({ length: 1000 }, (_, i) => i * 100);
+
+Deno.bench({
+  name: "fromArray - direct creation",
+  group: "fromArray-comparison",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromArray(comparisonIndices, 100_000);
+  },
+});
+
+Deno.bench({
+  name: "manual setBool - equivalent operation",
+  group: "fromArray-comparison",
+  fn: () => {
+    const array = new BooleanArray(100_000);
+    for (const index of comparisonIndices) {
+      array.setBool(index, true);
+    }
+  },
+});
+
+// Test sorted vs unsorted input
+const sortedIndices = Array.from({ length: 1000 }, (_, i) => i * 10);
+const unsortedIndices = [...sortedIndices].sort(() => Math.random() - 0.5);
+
+Deno.bench({
+  name: "fromArray - sorted indices",
+  group: "fromArray-sorting",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromArray(sortedIndices, 10_000);
+  },
+});
+
+Deno.bench({
+  name: "fromArray - unsorted indices",
+  group: "fromArray-sorting",
+  fn: () => {
+    BooleanArray.fromArray(unsortedIndices, 10_000);
+  },
+});

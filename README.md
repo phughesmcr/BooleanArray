@@ -157,6 +157,21 @@ for (const index of bits.truthyIndices()) {
 | difference - large arrays (1M bits)             | 157.8 µs        | 6,337        | (138.0 µs … 1.6 ms)           | 160.9 µs  | 254.3 µs  | 429.6 µs |
 | equals - non-aligned size                       | 3.2 ns          | 312,400,000  | (3.0 ns … 5.8 ns)             | 3.2 ns    | 3.5 ns    | 3.7 ns   |
 | difference - non-aligned size                   | 141.5 ns        | 7,065,000    | (125.0 ns … 373.3 ns)         | 145.6 ns  | 291.9 ns  | 355.1 ns |
+| fromArray - small sparse array (3 bits)         | 162.0 ns        | 6,173,000    | (122.3 ns … 424.1 ns)         | 153.6 ns  | 414.8 ns | 420.7 ns  |
+| fromArray - medium sparse array (32 bits)       | 347.6 ns        | 2,877,000    | (223.3 ns … 673.8 ns)         | 446.0 ns  | 473.0 ns | 673.8 ns  |
+| fromArray - large sparse array (1000 bits)      | 7.2 µs          | 139,000      | (2.9 µs … 4.4 ms)             | 4.6 µs    | 35.9 µs  | 62.6 µs   |
+| fromArray - dense cons. indices (1000 bits)     | 6.2 µs          | 162,500      | (3.2 µs … 4.2 ms)             | 4.7 µs    | 30.6 µs  | 53.1 µs   |
+| fromArray - random indices (1000 bits)          | 6.0 µs          | 167,900      | (2.9 µs … 3.8 ms)             | 4.4 µs    | 31.6 µs  | 53.9 µs   |
+| fromArray - clustered indices (1000 bits)       | 6.0 µs          | 167,300      | (2.9 µs … 4.4 ms)             | 4.4 µs    | 29.6 µs  | 52.8 µs   |
+| fromArray - 1K size (10% density)               | 329.0 ns        | 3,039,000    | (306.6 ns … 643.6 ns)         | 330.0 ns  | 638.7 ns | 643.6 ns  |
+| fromArray - 10K size (10% density)              | 2.1 µs          | 483,800      | (1.9 µs … 5.0 µs)             | 2.0 µs    | 5.0 µs   | 5.0 µs    |
+| fromArray - 100K size (10% density)             | 69.6 µs         | 14,360       | (17.6 µs … 249.4 µs)          | 78.1 µs   | 108.5 µs | 118.7 µs  |
+| fromArray - 1M size (10% density)               | 506.6 µs        | 1,974        | (183.2 µs … 3.3 ms)           | 742.7 µs  | 833.3 µs | 1.1 ms    |
+| fromArray - chunk boundary indices              | 140.0 ns        | 7,143,000    | (125.6 ns … 219.7 ns)         | 146.4 ns  | 206.4 ns | 219.2 ns  |
+| fromArray - maximum safe size                   | 92.2 µs         | 10,850       | (4.7 µs … 808.2 µs)           | 126.5 µs  | 506.1 µs | 539.2 µs  |
+| fromArray - direct creation                     | 2.5 µs          | 398,100      | (2.1 µs … 5.9 µs)             | 2.4 µs    | 5.9 µs   | 5.9 µs    |
+| fromArray - sorted indices                      | 2.1 µs          | 481,500      | (1.9 µs … 5.2 µs)             | 2.0 µs    | 5.2 µs   | 5.2 µs    |
+| fromArray - unsorted indices                    | 2.0 µs          | 493,600      | (1.9 µs … 5.2 µs)             | 1.9 µs    | 5.2 µs   | 5.2 µs    |
 
 ## Contributing
 

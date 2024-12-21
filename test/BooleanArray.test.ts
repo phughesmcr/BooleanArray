@@ -343,8 +343,8 @@ Deno.test("BooleanArray - Edge Cases and Error Handling", async (t) => {
 
   await t.step("should handle array size edge cases", () => {
     assertThrows(() => new BooleanArray(2 ** 32), RangeError);
-    const array = new BooleanArray(2 ** 32 - 1);
-    assertEquals(array.size, 2 ** 32 - 1);
+    const array = new BooleanArray(BooleanArray.MAX_SAFE_SIZE);
+    assertEquals(array.size, BooleanArray.MAX_SAFE_SIZE);
   });
 });
 
@@ -641,7 +641,7 @@ Deno.test("BooleanArray - getLastSetIndex with startIndex", async (t) => {
 
   await t.step("should throw on invalid startIndex", () => {
     const array = new BooleanArray(100);
-    
+
     assertThrows(() => array.getLastSetIndex(-1), RangeError);
     assertThrows(() => array.getLastSetIndex(101), RangeError);
     assertThrows(() => array.getLastSetIndex(1.5), TypeError);
@@ -651,7 +651,7 @@ Deno.test("BooleanArray - getLastSetIndex with startIndex", async (t) => {
   await t.step("should handle sparse bit patterns", () => {
     const array = new BooleanArray(1000);
     const indices = [100, 500, 900];
-    
+
     for (const index of indices) {
       array.setBool(index, true);
     }
@@ -691,5 +691,107 @@ Deno.test("BooleanArray - getLastSetIndex with startIndex", async (t) => {
     assertEquals(array.getLastSetIndex(size), size - 1);
     assertEquals(array.getLastSetIndex(size - 1), size - 2);
     assertEquals(array.getLastSetIndex(32), 31);
+  });
+});
+
+Deno.test("BooleanArray - Static fromArray Operation", async (t) => {
+  await t.step("should create array from valid number array", () => {
+    const indices = [0, 31, 32, 99];
+    const array = BooleanArray.fromArray(indices, 100);
+
+    assertEquals(array.size, 100);
+    assertEquals(array.getBool(0), true);
+    assertEquals(array.getBool(31), true);
+    assertEquals(array.getBool(32), true);
+    assertEquals(array.getBool(99), true);
+    assertEquals(array.getPopulationCount(), 4);
+  });
+
+  await t.step("should handle empty input array", () => {
+    const array = BooleanArray.fromArray([], 100);
+    assertEquals(array.size, 100);
+    assertEquals(array.isEmpty(), true);
+  });
+
+  await t.step("should handle sparse indices", () => {
+    const indices = [0, 999, 9999];
+    const size = 10000;
+    const array = BooleanArray.fromArray(indices, size);
+
+    assertEquals(array.size, size);
+    assertEquals([...array.truthyIndices()], indices);
+  });
+
+  await t.step("should handle consecutive indices", () => {
+    const indices = [10, 11, 12, 13, 14];
+    const array = BooleanArray.fromArray(indices, 100);
+
+    assertEquals(array.getBools(10, 5), [true, true, true, true, true]);
+    assertEquals(array.getBool(9), false);
+    assertEquals(array.getBool(15), false);
+  });
+
+  await t.step("should throw on non-number values", () => {
+    assertThrows(
+      // @ts-ignore - expected
+      // deno-lint-ignore no-explicit-any
+      () => BooleanArray.fromArray([1, "2" as any, 3], 100),
+      TypeError,
+      "BitPool.fromArray: array contains non-number or NaN values",
+    );
+  });
+
+  await t.step("should throw on NaN values", () => {
+    assertThrows(
+      () => BooleanArray.fromArray([1, NaN, 3], 100),
+      TypeError,
+      "BitPool.fromArray: array contains non-number or NaN values",
+    );
+  });
+
+  await t.step("should throw on out of bounds indices", () => {
+    assertThrows(
+      () => BooleanArray.fromArray([98, 99, 100], 100),
+      RangeError,
+    );
+  });
+
+  await t.step("should throw on negative indices", () => {
+    assertThrows(
+      () => BooleanArray.fromArray([-1, 0, 1], 100),
+      RangeError,
+    );
+  });
+
+  await t.step("should handle chunk boundary indices", () => {
+    const indices = [31, 32, 33];
+    const array = BooleanArray.fromArray(indices, 100);
+
+    assertEquals(array.getBool(31), true);
+    assertEquals(array.getBool(32), true);
+    assertEquals(array.getBool(33), true);
+    assertEquals(array.getPopulationCount(), 3);
+  });
+
+  await t.step("should handle large array size", () => {
+    const size = 1_000_000; // A large but manageable size
+    const indices = [0, size - 2, size - 1];
+    const array = BooleanArray.fromArray(indices, size);
+
+    assertEquals(array.size, size);
+    assertEquals(array.getBool(0), true);
+    assertEquals(array.getBool(size - 2), true);
+    assertEquals(array.getBool(size - 1), true);
+  });
+
+  await t.step("should handle maximum valid size", () => {
+    // Use a size that's large but won't cause overflow in bit operations
+    const maxValidSize = Math.floor((2 ** 32 - 1) / 8); // Ensure safe bit operations
+    const array = BooleanArray.fromArray([0, 1000, maxValidSize - 1], maxValidSize);
+
+    assertEquals(array.size, maxValidSize);
+    assertEquals(array.getBool(0), true);
+    assertEquals(array.getBool(1000), true);
+    assertEquals(array.getBool(maxValidSize - 1), true);
   });
 });
