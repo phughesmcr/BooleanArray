@@ -1,7 +1,8 @@
-import * as assert from "jsr:@std/assert";
-import { BooleanArray } from "../mod.ts";
+/// <reference lib="deno.ns" />
+/// <reference lib="dom" />
 
-const { assertEquals, assertThrows } = assert;
+import { assertEquals, assertThrows } from "jsr:@std/assert@^1.0.10";
+import { BooleanArray } from "../mod.ts";
 
 Deno.test("BooleanArray - Construction and Validation", async (t) => {
   await t.step("should create array with valid size", () => {

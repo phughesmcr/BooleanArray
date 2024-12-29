@@ -1,3 +1,6 @@
+/// <reference lib="deno.ns" />
+/// <reference lib="dom" />
+
 import { BooleanArray } from "../src/BooleanArray.ts";
 
 // Add before benchmarks
