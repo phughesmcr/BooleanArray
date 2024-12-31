@@ -179,6 +179,19 @@ export class BooleanArray extends Uint32Array {
   }
 
   /**
+   * Create a BooleanArray from an object, using the object's keys as the bit indices.
+   * @param obj The object to create the BooleanArray from
+   * @param size The size of the BooleanArray
+   * @returns A new BooleanArray instance
+   */
+  static fromObjects<T>(size: number, key: keyof T, objs: T[]): BooleanArray {
+    return objs.reduce((bitfield, obj) => {
+      bitfield.setBool(obj[key] as number, true);
+      return bitfield;
+    }, new BooleanArray(size));
+  }
+
+  /**
    * Get the chunk index for a given bool index
    * @param index the bool index to get the chunk index for
    * @returns the chunk index

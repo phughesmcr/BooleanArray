@@ -1138,3 +1138,263 @@ Deno.bench({
     BooleanArray.fromArray(unsortedIndices, 10_000);
   },
 });
+
+// fromObjects benchmarks setup
+const smallObjects = [
+  { id: 0 },
+  { id: 15 },
+  { id: 31 },
+];
+
+const mediumObjects = Array.from({ length: 32 }, (_, i) => ({ pos: i * 32 }));
+const largeObjects = Array.from({ length: 1000 }, (_, i) => ({ idx: i * 1000 }));
+const denseObjects = Array.from({ length: 1000 }, (_, i) => ({ val: i }));
+
+// Basic fromObjects benchmarks
+Deno.bench({
+  name: "fromObjects - small sparse array (3 objects)",
+  group: "fromObjects",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromObjects<{ id: number }>(32, "id", smallObjects);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - medium sparse array (32 objects)",
+  group: "fromObjects",
+  fn: () => {
+    BooleanArray.fromObjects<{ pos: number }>(1024, "pos", mediumObjects);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - large sparse array (1000 objects)",
+  group: "fromObjects",
+  fn: () => {
+    BooleanArray.fromObjects<{ idx: number }>(1_000_000, "idx", largeObjects);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - dense consecutive indices (1000 objects)",
+  group: "fromObjects",
+  fn: () => {
+    BooleanArray.fromObjects<{ val: number }>(1_000_000, "val", denseObjects);
+  },
+});
+
+// Test different object patterns
+const randomObjects = Array.from(
+  { length: 1000 },
+  () => ({ value: Math.floor(Math.random() * 1_000_000) }),
+);
+
+const clusterObjects = Array.from(
+  { length: 1000 },
+  (_, i) => ({ value: Math.floor(i / 10) * 100 + (i % 10) }),
+);
+
+Deno.bench({
+  name: "fromObjects - random indices (1000 objects)",
+  group: "fromObjects-patterns",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromObjects<{ value: number }>(1_000_000, "value", randomObjects);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - clustered indices (1000 objects)",
+  group: "fromObjects-patterns",
+  fn: () => {
+    BooleanArray.fromObjects<{ value: number }>(1_000_000, "value", clusterObjects);
+  },
+});
+
+// Test different array sizes with same density (10%)
+const objects1k = Array.from({ length: 100 }, (_, i) => ({ n: i * 10 }));
+const objects10k = Array.from({ length: 1000 }, (_, i) => ({ n: i * 10 }));
+const objects100k = Array.from({ length: 10000 }, (_, i) => ({ n: i * 10 }));
+const objects1m = Array.from({ length: 100000 }, (_, i) => ({ n: i * 10 }));
+
+Deno.bench({
+  name: "fromObjects - 1K size (10% density)",
+  group: "fromObjects-scaling",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromObjects<{ n: number }>(1000, "n", objects1k);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - 10K size (10% density)",
+  group: "fromObjects-scaling",
+  fn: () => {
+    BooleanArray.fromObjects<{ n: number }>(10_000, "n", objects10k);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - 100K size (10% density)",
+  group: "fromObjects-scaling",
+  fn: () => {
+    BooleanArray.fromObjects<{ n: number }>(100_000, "n", objects100k);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - 1M size (10% density)",
+  group: "fromObjects-scaling",
+  fn: () => {
+    BooleanArray.fromObjects<{ n: number }>(1_000_000, "n", objects1m);
+  },
+});
+
+// Test edge cases
+const edgeCaseObjects = [
+  { pos: 31 },
+  { pos: 32 },
+  { pos: 63 },
+  { pos: 64 },
+]; // Chunk boundaries
+
+const maxSizeObjects = [
+  { pos: 0 },
+  { pos: BooleanArray.MAX_SAFE_SIZE - 2 },
+  { pos: BooleanArray.MAX_SAFE_SIZE - 1 },
+];
+
+Deno.bench({
+  name: "fromObjects - chunk boundary indices",
+  group: "fromObjects-edge",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromObjects<{ pos: number }>(100, "pos", edgeCaseObjects);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - maximum safe size",
+  group: "fromObjects-edge",
+  fn: () => {
+    BooleanArray.fromObjects<{ pos: number }>(
+      BooleanArray.MAX_SAFE_SIZE,
+      "pos",
+      maxSizeObjects,
+    );
+  },
+});
+
+// Compare with alternative methods
+const comparisonObjects = Array.from(
+  { length: 1000 },
+  (_, i) => ({ index: i * 100 }),
+);
+
+Deno.bench({
+  name: "fromObjects - direct creation",
+  group: "fromObjects-comparison",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromObjects<{ index: number }>(100_000, "index", comparisonObjects);
+  },
+});
+
+Deno.bench({
+  name: "manual setBool - equivalent operation",
+  group: "fromObjects-comparison",
+  fn: () => {
+    const array = new BooleanArray(100_000);
+    for (const obj of comparisonObjects) {
+      array.setBool(obj.index, true);
+    }
+  },
+});
+
+// Test sorted vs unsorted input
+const sortedObjects = Array.from({ length: 1000 }, (_, i) => ({ val: i * 10 }));
+const unsortedObjects = [...sortedObjects].sort(() => Math.random() - 0.5);
+
+Deno.bench({
+  name: "fromObjects - sorted indices",
+  group: "fromObjects-sorting",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromObjects<{ val: number }>(10_000, "val", sortedObjects);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - unsorted indices",
+  group: "fromObjects-sorting",
+  fn: () => {
+    BooleanArray.fromObjects<{ val: number }>(10_000, "val", unsortedObjects);
+  },
+});
+
+// Test objects with multiple properties
+interface ComplexObject {
+  id: number;
+  name: string;
+  value: number;
+}
+
+const simpleObjects = Array.from(
+  { length: 1000 },
+  (_, i) => ({ id: i }),
+);
+
+const complexObjects = Array.from(
+  { length: 1000 },
+  (_, i) => ({
+    id: i,
+    name: `item-${i}`,
+    value: i * 2,
+  }),
+);
+
+Deno.bench({
+  name: "fromObjects - simple objects (single property)",
+  group: "fromObjects-complexity",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromObjects<{ id: number }>(1000, "id", simpleObjects);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - complex objects (multiple properties)",
+  group: "fromObjects-complexity",
+  fn: () => {
+    BooleanArray.fromObjects<ComplexObject>(1000, "id", complexObjects);
+  },
+});
+
+// Test with duplicate indices
+const uniqueObjects = Array.from(
+  { length: 1000 },
+  (_, i) => ({ id: i }),
+);
+
+const duplicateObjects = Array.from(
+  { length: 1000 },
+  (_, i) => ({ id: Math.floor(i / 2) }), // Each index appears twice
+);
+
+Deno.bench({
+  name: "fromObjects - unique indices",
+  group: "fromObjects-duplicates",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromObjects<{ id: number }>(1000, "id", uniqueObjects);
+  },
+});
+
+Deno.bench({
+  name: "fromObjects - duplicate indices",
+  group: "fromObjects-duplicates",
+  fn: () => {
+    BooleanArray.fromObjects<{ id: number }>(1000, "id", duplicateObjects);
+  },
+});

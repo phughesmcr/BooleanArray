@@ -172,6 +172,23 @@ for (const index of bits.truthyIndices()) {
 | fromArray - direct creation                     | 2.5 µs          | 398,100      | (2.1 µs … 5.9 µs)             | 2.4 µs    | 5.9 µs   | 5.9 µs    |
 | fromArray - sorted indices                      | 2.1 µs          | 481,500      | (1.9 µs … 5.2 µs)             | 2.0 µs    | 5.2 µs   | 5.2 µs    |
 | fromArray - unsorted indices                    | 2.0 µs          | 493,600      | (1.9 µs … 5.2 µs)             | 1.9 µs    | 5.2 µs   | 5.2 µs    |
+| fromObjects - small sparse array (3 objects)         | 162.0 ns        | 6,173,000    | (122.3 ns … 424.1 ns)         | 153.6 ns  | 414.8 ns | 420.7 ns  |
+| fromObjects - medium sparse array (32 objects)       | 347.6 ns        | 2,877,000    | (223.3 ns … 673.8 ns)         | 446.0 ns  | 473.0 ns | 673.8 ns  |
+| fromObjects - random indices (1000 objects)          | 29.6 µs         | 33,830       | (15.7 µs … 3.7 ms)            | 27.7 µs   | 112.7 µs | 159.6 µs  |
+| fromObjects - clustered indices (1000 objects)       | 30.0 µs         | 33,380       | (14.3 µs … 4.4 ms)            | 27.2 µs   | 102.4 µs | 143.1 µs  |
+| fromObjects - 1K size (10% density)                  | 1.7 µs          | 594,600      | (1.6 µs … 2.4 µs)             | 1.7 µs    | 2.4 µs   | 2.4 µs    |
+| fromObjects - 10K size (10% density)                 | 13.6 µs         | 73,410       | (10.4 µs … 460.3 µs)          | 13.9 µs   | 50.4 µs  | 57.9 µs   |
+| fromObjects - 100K size (10% density)                | 191.8 µs        | 5,215        | (146.7 µs … 892.8 µs)         | 204.5 µs  | 428.5 µs | 527.0 µs  |
+| fromObjects - 1M size (10% density)                  | 1.8 ms          | 552.0        | (1.5 ms … 2.9 ms)             | 1.9 ms    | 2.9 ms   | 2.9 ms    |
+| fromObjects - chunk boundary indices                 | 490.0 ns        | 2,041,000    | (405.5 ns … 827.0 ns)         | 509.7 ns  | 675.3 ns | 827.0 ns  |
+| fromObjects - maximum safe size                      | 464.3 µs        | 2,154        | (22.2 µs … 2.9 ms)            | 490.4 µs  | 2.1 ms   | 2.2 ms    |
+| fromObjects - direct creation                        | 17.2 µs         | 58,090       | (10.5 µs … 1.9 ms)            | 19.1 µs   | 61.5 µs  | 76.6 µs   |
+| fromObjects - sorted indices                         | 19.8 µs         | 50,490       | (11.5 µs … 4.0 ms)            | 22.3 µs   | 59.7 µs  | 75.4 µs   |
+| fromObjects - unsorted indices                       | 14.7 µs         | 68,050       | (10.6 µs … 559.4 µs)          | 15.6 µs   | 50.2 µs  | 58.7 µs   |
+| fromObjects - simple objects (single property)       | 15.0 µs         | 66,700       | (10.4 µs … 574.3 µs)          | 15.8 µs   | 57.5 µs  | 84.0 µs   |
+| fromObjects - complex objects (multiple properties)  | 18.7 µs         | 53,470       | (10.9 µs … 576.9 µs)          | 20.2 µs   | 60.7 µs  | 71.0 µs   |
+| fromObjects - unique indices                         | 18.2 µs         | 55,010       | (10.4 µs … 4.3 ms)            | 20.3 µs   | 47.0 µs  | 56.5 µs   |
+| fromObjects - duplicate indices                      | 15.6 µs         | 64,150       | (10.4 µs … 435.3 µs)          | 17.5 µs   | 49.6 µs  | 56.8 µs   |
 
 ## Contributing
 

@@ -796,3 +796,196 @@ Deno.test("BooleanArray - Static fromArray Operation", async (t) => {
     assertEquals(array.getBool(maxValidSize - 1), true);
   });
 });
+
+Deno.test("BooleanArray - Static fromObjects Operation", async (t) => {
+  await t.step("should create array from objects with valid number properties", () => {
+    const objects = [
+      { id: 0, name: "first" },
+      { id: 31, name: "second" },
+      { id: 32, name: "third" },
+      { id: 99, name: "fourth" },
+    ];
+    const array = BooleanArray.fromObjects<{ id: number; name: string }>(100, "id", objects);
+
+    assertEquals(array.size, 100);
+    assertEquals(array.getBool(0), true);
+    assertEquals(array.getBool(31), true);
+    assertEquals(array.getBool(32), true);
+    assertEquals(array.getBool(99), true);
+    assertEquals(array.getPopulationCount(), 4);
+  });
+
+  await t.step("should handle empty objects array", () => {
+    const objects: Array<{ id: number }> = [];
+    const array = BooleanArray.fromObjects<{ id: number }>(100, "id", objects);
+
+    assertEquals(array.size, 100);
+    assertEquals(array.isEmpty(), true);
+  });
+
+  await t.step("should handle sparse indices in objects", () => {
+    const objects = [
+      { pos: 0 },
+      { pos: 999 },
+      { pos: 9999 },
+    ];
+    const size = 10000;
+    const array = BooleanArray.fromObjects<{ pos: number }>(size, "pos", objects);
+
+    assertEquals(array.size, size);
+    assertEquals([...array.truthyIndices()], [0, 999, 9999]);
+  });
+
+  await t.step("should handle consecutive indices in objects", () => {
+    const objects = [
+      { index: 10 },
+      { index: 11 },
+      { index: 12 },
+      { index: 13 },
+      { index: 14 },
+    ];
+    const array = BooleanArray.fromObjects<{ index: number }>(100, "index", objects);
+
+    assertEquals(array.getBools(10, 5), [true, true, true, true, true]);
+    assertEquals(array.getBool(9), false);
+    assertEquals(array.getBool(15), false);
+  });
+
+  await t.step("should throw on non-number property values", () => {
+    const objects = [
+      { id: 1 },
+      { id: "2" }, // Invalid: string instead of number
+      { id: 3 },
+    ];
+
+    assertThrows(
+      // @ts-ignore - Testing runtime behavior with invalid types
+      () => BooleanArray.fromObjects(100, "id", objects),
+      TypeError,
+    );
+  });
+
+  await t.step("should throw on NaN property values", () => {
+    const objects = [
+      { val: 1 },
+      { val: NaN },
+      { val: 3 },
+    ];
+
+    assertThrows(
+      () => BooleanArray.fromObjects(100, "val", objects),
+      TypeError,
+    );
+  });
+
+  await t.step("should throw on out of bounds indices", () => {
+    const objects = [
+      { pos: 98 },
+      { pos: 99 },
+      { pos: 100 }, // Invalid: equal to size
+    ];
+
+    assertThrows(
+      () => BooleanArray.fromObjects(100, "pos", objects),
+      RangeError,
+    );
+  });
+
+  await t.step("should throw on negative indices", () => {
+    const objects = [
+      { pos: -1 }, // Invalid: negative
+      { pos: 0 },
+      { pos: 1 },
+    ];
+
+    assertThrows(
+      () => BooleanArray.fromObjects(100, "pos", objects),
+      RangeError,
+    );
+  });
+
+  await t.step("should handle chunk boundary indices", () => {
+    const objects = [
+      { idx: 31 },
+      { idx: 32 },
+      { idx: 33 },
+    ];
+    const array = BooleanArray.fromObjects<{ idx: number }>(100, "idx", objects);
+
+    assertEquals(array.getBool(31), true);
+    assertEquals(array.getBool(32), true);
+    assertEquals(array.getBool(33), true);
+    assertEquals(array.getPopulationCount(), 3);
+  });
+
+  await t.step("should handle large array size", () => {
+    const size = 1_000_000;
+    const objects = [
+      { pos: 0 },
+      { pos: size - 2 },
+      { pos: size - 1 },
+    ];
+    const array = BooleanArray.fromObjects<{ pos: number }>(size, "pos", objects);
+
+    assertEquals(array.size, size);
+    assertEquals(array.getBool(0), true);
+    assertEquals(array.getBool(size - 2), true);
+    assertEquals(array.getBool(size - 1), true);
+  });
+
+  await t.step("should handle maximum valid size", () => {
+    const maxValidSize = Math.floor((2 ** 32 - 1) / 8);
+    const objects = [
+      { pos: 0 },
+      { pos: 1000 },
+      { pos: maxValidSize - 1 },
+    ];
+    const array = BooleanArray.fromObjects<{ pos: number }>(maxValidSize, "pos", objects);
+
+    assertEquals(array.size, maxValidSize);
+    assertEquals(array.getBool(0), true);
+    assertEquals(array.getBool(1000), true);
+    assertEquals(array.getBool(maxValidSize - 1), true);
+  });
+
+  await t.step("should handle objects with missing properties", () => {
+    const objects = [
+      { id: 1 },
+      {}, // Missing id property
+      { id: 3 },
+    ];
+
+    assertThrows(
+      // @ts-ignore - Testing runtime behavior with invalid types
+      () => BooleanArray.fromObjects(100, "id", objects),
+      TypeError,
+    );
+  });
+
+  await t.step("should handle objects with undefined property values", () => {
+    const objects = [
+      { id: 1 },
+      { id: undefined },
+      { id: 3 },
+    ];
+
+    assertThrows(
+      // @ts-ignore - Testing runtime behavior with invalid types
+      () => BooleanArray.fromObjects(100, "id", objects),
+      TypeError,
+    );
+  });
+
+  await t.step("should handle duplicate indices", () => {
+    const objects = [
+      { val: 1 },
+      { val: 2 },
+      { val: 1 }, // Duplicate index
+    ];
+    const array = BooleanArray.fromObjects<{ val: number }>(100, "val", objects);
+
+    assertEquals(array.getPopulationCount(), 2);
+    assertEquals(array.getBool(1), true);
+    assertEquals(array.getBool(2), true);
+  });
+});
