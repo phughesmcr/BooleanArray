@@ -5,99 +5,7 @@
  * @license     MIT
  */
 
-/**
- * Performs a bitwise AND operation with two numbers
- * @param a the first number
- * @param b the second number
- * @returns the result of the bitwise AND operation
- */
-export function and(a: number, b: number): number {
-  return a & b;
-}
-
-/**
- * Performs a bitwise difference operation with two numbers
- * @param a the first number
- * @param b the second number
- * @returns the result of the bitwise difference operation
- */
-export function difference(a: number, b: number): number {
-  return a & ~b;
-}
-
-/**
- * Performs a bitwise NAND operation with two numbers
- * @param a the first number
- * @param b the second number
- * @returns the result of the bitwise NAND operation
- */
-export function nand(a: number, b: number): number {
-  return ~(a & b);
-}
-
-/**
- * Performs a bitwise NOR operation with two numbers
- * @param a the first number
- * @param b the second number
- * @returns the result of the bitwise NOR operation
- */
-export function nor(a: number, b: number): number {
-  return ~(a | b);
-}
-
-/**
- * Performs a bitwise NOT operation with a number
- * @param a the number to perform the bitwise NOT operation on
- * @returns the result of the bitwise NOT operation
- */
-export function not(a: number): number {
-  return ~a;
-}
-
-/**
- * Performs a bitwise OR operation with two numbers
- * @param a the first number
- * @param b the second number
- * @returns the result of the bitwise OR operation
- */
-export function or(a: number, b: number): number {
-  return a | b;
-}
-
-/**
- * Performs a bitwise XOR operation with two numbers
- * @param a the first number
- * @param b the second number
- * @returns the result of the bitwise XOR operation
- */
-export function xor(a: number, b: number): number {
-  return a ^ b;
-}
-
-/**
- * Performs a bitwise XNOR operation with two numbers
- * @param a the first number
- * @param b the second number
- * @returns the result of the bitwise XNOR operation
- */
-export function xnor(a: number, b: number): number {
-  return ~(a ^ b);
-}
-
-/** Utility function to check if a value is invalid */
-const invalidNumber = (n: number) => typeof n !== "number" || isNaN(n);
-
-/**
- * Count set bits in chunk
- * @param value the value to count the set bits in
- * @returns the number of set bits in the value
- */
-export function countChunk(value: number): number {
-  value = value - ((value >>> 1) & 0x55555555);
-  value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);
-  value = (value + (value >>> 4)) & 0x0f0f0f0f;
-  return ((value * 0x01010101) >>> 24);
-}
+import { and, countChunk, difference, invalidNumber, nand, nor, not, or, xnor, xor } from "./utils.ts";
 
 /** A fast boolean array backed by a Uint32Array */
 export class BooleanArray extends Uint32Array {
@@ -259,16 +167,40 @@ export class BooleanArray extends Uint32Array {
    * @param a the first BooleanArray
    * @param b the second BooleanArray
    * @param operation the bitwise operation to perform
-   * @returns a new BooleanArray with the result
+   * @param inPlace whether the operation should be performed in-place on `a`
+   * @returns a BooleanArray with the result (either `a` if inPlace, or a new BooleanArray)
    */
-  static operate(a: BooleanArray, b: BooleanArray, operation: (a: number, b: number) => number): BooleanArray {
+  static operate(
+    a: BooleanArray,
+    b: BooleanArray,
+    operation: (a: number, b: number) => number,
+    inPlace = false,
+  ): BooleanArray {
     if (a.size !== b.size) {
       throw new Error("Arrays must have the same size");
     }
-    const result = new BooleanArray(a.size);
+
+    const result = inPlace ? a : new BooleanArray(a.size);
+
     for (let i = 0; i < a.length; i++) {
       result[i] = operation(a[i]!, b[i]!);
     }
+
+    // Special handling for operations that involve a bitwise NOT (~) as their final step.
+    // This is because '~' flips all bits in a chunk, including potentially unused ones in the last chunk.
+    if (operation === not || operation === nand || operation === nor || operation === xnor) {
+      const lastChunkIndex = result.length - 1;
+      if (lastChunkIndex >= 0) { // Ensure there is at least one chunk
+        const bitsInLastChunk = result.size % BooleanArray.BITS_PER_INT;
+        // If bitsInLastChunk is 0, the last chunk is fully utilized, no masking needed.
+        if (bitsInLastChunk > 0) {
+          // Create a mask for the utilized bits in the last chunk.
+          const mask = (1 << bitsInLastChunk) - 1;
+          result[lastChunkIndex]! &= mask; // Apply mask, asserting result[lastChunkIndex] is not undefined.
+        }
+      }
+    }
+
     return result;
   }
 
@@ -351,6 +283,15 @@ export class BooleanArray extends Uint32Array {
   }
 
   /**
+   * Performs an in-place bitwise AND operation with another BooleanArray
+   * @param other the BooleanArray to perform the bitwise AND operation with
+   * @returns the current BooleanArray
+   */
+  and(other: BooleanArray): this {
+    return BooleanArray.operate(this, other, and, true) as this;
+  }
+
+  /**
    * Clear the array
    * @returns `this` for chaining
    */
@@ -368,6 +309,16 @@ export class BooleanArray extends Uint32Array {
     copy.set(this);
     return copy;
   }
+
+  /**
+   * Performs an in-place bitwise difference operation with another BooleanArray
+   * @param other the BooleanArray to perform the bitwise difference operation with
+   * @returns the current BooleanArray
+   */
+  difference(other: BooleanArray): this {
+    return BooleanArray.operate(this, other, difference, true) as this;
+  }
+
 
   /**
    * Get the boolean state of a bit
@@ -523,6 +474,42 @@ export class BooleanArray extends Uint32Array {
   }
 
   /**
+   * Performs an in-place bitwise NAND operation with another BooleanArray
+   * @param other the BooleanArray to perform the bitwise NAND operation with
+   * @returns the current BooleanArray
+   */
+  nand(other: BooleanArray): this {
+    return BooleanArray.operate(this, other, nand, true) as this;
+  }
+
+  /**
+   * Performs an in-place bitwise NOR operation with another BooleanArray
+   * @param other the BooleanArray to perform the bitwise NOR operation with
+   * @returns the current BooleanArray
+   */
+  nor(other: BooleanArray): this {
+    return BooleanArray.operate(this, other, nor, true) as this;
+  }
+
+  /**
+   * Performs an in-place bitwise NOT operation on this BooleanArray.
+   * Flips all the bits within the logical size of the array.
+   * @returns the current BooleanArray
+   */
+  not(): this {
+    return BooleanArray.operate(this, this, not, true) as this;
+  }
+
+  /**
+   * Performs an in-place bitwise OR operation with another BooleanArray
+   * @param other the BooleanArray to perform the bitwise OR operation with
+   * @returns the current BooleanArray
+   */
+  or(other: BooleanArray): this {
+    return BooleanArray.operate(this, other, or, true) as this;
+  }
+
+  /**
    * Set all bits to `true`
    * @returns `this` for chaining
    */
@@ -627,6 +614,24 @@ export class BooleanArray extends Uint32Array {
     const mask = 1 << offset;
     this[chunk]! ^= mask;
     return (this[chunk]! & mask) !== 0;
+  }
+
+  /**
+   * Performs an in-place bitwise XOR operation with another BooleanArray
+   * @param other the BooleanArray to perform the bitwise XOR operation with
+   * @returns the current BooleanArray
+   */
+  xor(other: BooleanArray): this {
+    return BooleanArray.operate(this, other, xor, true) as this;
+  }
+
+  /**
+   * Performs an in-place bitwise XNOR operation with another BooleanArray
+   * @param other the BooleanArray to perform the bitwise XNOR operation with
+   * @returns the current BooleanArray
+   */
+  xnor(other: BooleanArray): this {
+    return BooleanArray.operate(this, other, xnor, true) as this;
   }
 
   /**
