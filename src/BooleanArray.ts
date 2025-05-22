@@ -282,13 +282,19 @@ export class BooleanArray extends Uint32Array {
 
   /**
    * Creates a new BooleanArray
-   * @param size the number of bits required in the array (min = 1, max = 4294967295)
+   * @param size the number of bits required in the array (min = 1, max = BooleanArray.MAX_SAFE_SIZE)
    * @returns a new BooleanArray
-   * @throws {RangeError} if `size` is less than 1, or is greater than 0xffffffff (2 ** 32 - 1) === (4294967295)
-   * @throws {TypeError} if `size` is NaN
+   * @throws {RangeError} if `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
+   * @throws {TypeError} if `size` is not a safe integer or NaN
    */
   constructor(size: number) {
-    super(BooleanArray.getChunkCount(BooleanArray.validateValue(size)));
+    BooleanArray.validateValue(size); // Validates type, NaN, safe integer, and against MAX_SAFE_SIZE
+    if (size < 1) {
+      throw new RangeError(
+        `"size" must be greater than or equal to 1. Received: ${size}`,
+      );
+    }
+    super(BooleanArray.getChunkCount(size));
     this.#size = size;
   }
 
