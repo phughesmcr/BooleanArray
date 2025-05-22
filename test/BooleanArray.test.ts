@@ -1,8 +1,29 @@
 /// <reference lib="deno.ns" />
 /// <reference lib="dom" />
 
-import { assertEquals, assertThrows } from "jsr:@std/assert@^1.0.10";
+import { assert, assertEquals, assertThrows } from "jsr:@std/assert@^1.0.10";
 import { BooleanArray } from "../mod.ts";
+
+// Helper function to assert that unused bits in the last chunk are zero
+function assertUnusedBitsZero(array: BooleanArray, operationName?: string) {
+  if (array.size === 0 || array.length === 0) return;
+  const bitsInLastChunk = array.size % BooleanArray.BITS_PER_INT;
+  if (bitsInLastChunk === 0) return; // Last chunk is full
+
+  const lastChunkIndex = array.length - 1;
+  const lastChunkValue = array[lastChunkIndex]!; // Uint32Array access
+  const unusedMask = BooleanArray.ALL_BITS << bitsInLastChunk;
+
+  assertEquals(
+    lastChunkValue & unusedMask,
+    0,
+    `Unused bits in the last chunk of array (size ${array.size}) after ${
+      operationName || "operation"
+    } should be zero. Last chunk value: 0b${lastChunkValue.toString(2).padStart(32, "0")}, Mask for unused: 0b${
+      unusedMask.toString(2).padStart(32, "0")
+    }`,
+  );
+}
 
 Deno.test("BooleanArray - Construction and Validation", async (t) => {
   await t.step("should create array with valid size", () => {
@@ -738,7 +759,7 @@ Deno.test("BooleanArray - Static fromArray Operation", async (t) => {
       // deno-lint-ignore no-explicit-any
       () => BooleanArray.fromArray([1, "2" as any, 3], 100),
       TypeError,
-      "BitPool.fromArray: array contains non-number or NaN values",
+      "BooleanArray.fromArray: array contains non-number or NaN values",
     );
   });
 
@@ -746,7 +767,7 @@ Deno.test("BooleanArray - Static fromArray Operation", async (t) => {
     assertThrows(
       () => BooleanArray.fromArray([1, NaN, 3], 100),
       TypeError,
-      "BitPool.fromArray: array contains non-number or NaN values",
+      "BooleanArray.fromArray: array contains non-number or NaN values",
     );
   });
 
@@ -990,6 +1011,297 @@ Deno.test("BooleanArray - Static fromObjects Operation", async (t) => {
   });
 });
 
+Deno.test("BooleanArray - Static Bitwise Operations (Comprehensive)", async (t) => {
+  const sizesToTest = [32, 33, 35, 64, 65]; // Aligned and non-aligned
+
+  for (const size of sizesToTest) {
+    await t.step(`NOT operation (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      a.setAll(); // All true
+      const result = BooleanArray.not(a);
+      assertEquals(result.getPopulationCount(), 0, `Population count should be 0 after NOT on all true (size ${size})`);
+      for (let i = 0; i < size; i++) assertEquals(result.getBool(i), false, `Bit ${i} should be false (size ${size})`);
+      assertUnusedBitsZero(result, `BooleanArray.not (size ${size}, from all true)`);
+
+      const b = new BooleanArray(size); // All false
+      const result2 = BooleanArray.not(b);
+      assertEquals(
+        result2.getPopulationCount(),
+        size,
+        `Population count should be ${size} after NOT on all false (size ${size})`,
+      );
+      for (let i = 0; i < size; i++) assertEquals(result2.getBool(i), true, `Bit ${i} should be true (size ${size})`);
+      assertUnusedBitsZero(result2, `BooleanArray.not (size ${size}, from all false)`);
+    });
+
+    await t.step(`NAND operation (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+      a.setAll(); // a is all true
+      b.setAll(); // b is all true
+      const result = BooleanArray.nand(a, b); // true NAND true = false
+      assertEquals(result.getPopulationCount(), 0, `NAND(all_true, all_true) pop count (size ${size})`);
+      assertUnusedBitsZero(result, `BooleanArray.nand (all_true, all_true, size ${size})`);
+
+      a.clear(); // a is all false
+      const result2 = BooleanArray.nand(a, b); // false NAND true = true
+      assertEquals(result2.getPopulationCount(), size, `NAND(all_false, all_true) pop count (size ${size})`);
+      assertUnusedBitsZero(result2, `BooleanArray.nand (all_false, all_true, size ${size})`);
+    });
+
+    await t.step(`NOR operation (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+      a.setBool(0, true); // a = [1,0,0...]
+      b.setBool(1, true); // b = [0,1,0...]
+      const result = BooleanArray.nor(a, b); // nor([1,0..],[0,1..]) -> first two false, rest true
+      // Expected: ~(a[i] | b[i]). ~(1|0)=~1=0. ~(0|1)=~1=0. ~(0|0)=~0=1.
+      if (size > 0) assertEquals(result.getBool(0), false, `NOR bit 0 (size ${size})`);
+      if (size > 1) assertEquals(result.getBool(1), false, `NOR bit 1 (size ${size})`);
+      for (let i = 2; i < size; i++) assertEquals(result.getBool(i), true, `NOR bit ${i} (size ${size})`);
+      assertEquals(result.getPopulationCount(), Math.max(0, size - 2), `NOR pop count (size ${size})`);
+      assertUnusedBitsZero(result, `BooleanArray.nor (size ${size})`);
+    });
+
+    await t.step(`XNOR operation (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+
+      a.setAll(); // 'a' is logically all true [1,1,1,...]
+
+      b.setAll(); // Initialize 'b' to be all true [1,1,1,...]
+      if (size > 0) {
+        b.setBool(0, false); // Set first bit of 'b' to false. 'b' is now logically [0,1,1,...]
+      }
+      // If size is 0, 'a' and 'b' are empty, xnor is well-defined (empty result).
+
+      // Perform a.xnor(b):
+      // a_initial: [1,1,1,...]
+      // b_initial: [0,1,1,...]
+      // XNOR means true if bits are equal.
+      // a[0] (true) XNOR b[0] (false) => false. So a[0] becomes false.
+      // a[i] (true) XNOR b[i] (true) for i>0 => true. So a[i] stays true.
+      // Thus, 'a' should become logically [0,1,1,...]
+      a.xnor(b);
+
+      // Assertions:
+      if (size > 0) {
+        assertEquals(a.getBool(0), false, `Instance XNOR bit 0 (size ${size}) should be false`);
+      }
+      for (let i = 1; i < size; i++) {
+        assertEquals(a.getBool(i), true, `Instance XNOR bit ${i} (size ${size}) should be true`);
+      }
+      // Population count for [0,1,1,...] is (size - 1) if size > 0, or 0 if size is 0.
+      assertEquals(
+        a.getPopulationCount(),
+        Math.max(0, size > 0 ? size - 1 : 0),
+        `Instance XNOR pop count (size ${size})`,
+      );
+      assertUnusedBitsZero(a, `instance a.xnor(b) (size ${size})`);
+    });
+
+    await t.step(`XOR operation (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+      a.setBool(0, true);
+      a.setBool(1, true);
+      b.setBool(1, true);
+      b.setBool(2, true);
+      // a = [1,1,0,0...]
+      // b = [0,1,1,0...]
+      //xor= [1,0,1,0...]
+      const result = BooleanArray.xor(a, b);
+      if (size > 0) assertEquals(result.getBool(0), true);
+      if (size > 1) assertEquals(result.getBool(1), false);
+      if (size > 2) assertEquals(result.getBool(2), true);
+      for (let i = 3; i < size; i++) assertEquals(result.getBool(i), false);
+      assertUnusedBitsZero(result, `BooleanArray.xor (size ${size})`);
+    });
+  }
+});
+
+Deno.test("BooleanArray - Instance Bitwise Operations (Comprehensive)", async (t) => {
+  const sizesToTest = [32, 33, 35, 64, 65];
+
+  for (const size of sizesToTest) {
+    await t.step(`instance not() (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      a.setAll();
+      a.not();
+      assertEquals(a.getPopulationCount(), 0);
+      assertUnusedBitsZero(a, `instance a.not() (size ${size}, from all true)`);
+
+      const b = new BooleanArray(size);
+      b.not();
+      assertEquals(b.getPopulationCount(), size);
+      assertUnusedBitsZero(b, `instance b.not() (size ${size}, from all false)`);
+    });
+
+    await t.step(`instance nand(other) (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+      a.setAll();
+      b.setAll();
+      a.nand(b); // a becomes NAND(a,b)
+      assertEquals(a.getPopulationCount(), 0);
+      assertUnusedBitsZero(a, `instance a.nand(b) (all_true, all_true, size ${size})`);
+    });
+
+    await t.step(`instance nor(other) (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+      if (size > 0) a.setBool(0, true);
+      if (size > 1) b.setBool(1, true);
+      a.nor(b);
+      assertEquals(a.getPopulationCount(), Math.max(0, size - 2));
+      assertUnusedBitsZero(a, `instance a.nor(b) (size ${size})`);
+    });
+
+    await t.step(`instance xnor(other) (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+
+      a.setAll(); // 'a' is logically all true [1,1,1,...]
+
+      b.setAll(); // Initialize 'b' to be all true [1,1,1,...]
+      if (size > 0) {
+        b.setBool(0, false); // Set first bit of 'b' to false. 'b' is now logically [0,1,1,...]
+      }
+      // If size is 0, 'a' and 'b' are empty, xnor is well-defined (empty result).
+
+      // Perform a.xnor(b):
+      // a_initial: [1,1,1,...]
+      // b_initial: [0,1,1,...]
+      // XNOR means true if bits are equal.
+      // a[0] (true) XNOR b[0] (false) => false. So a[0] becomes false.
+      // a[i] (true) XNOR b[i] (true) for i>0 => true. So a[i] stays true.
+      // Thus, 'a' should become logically [0,1,1,...]
+      a.xnor(b);
+
+      // Assertions:
+      if (size > 0) {
+        assertEquals(a.getBool(0), false, `Instance XNOR bit 0 (size ${size}) should be false`);
+      }
+      for (let i = 1; i < size; i++) {
+        assertEquals(a.getBool(i), true, `Instance XNOR bit ${i} (size ${size}) should be true`);
+      }
+      // Population count for [0,1,1,...] is (size - 1) if size > 0, or 0 if size is 0.
+      assertEquals(
+        a.getPopulationCount(),
+        Math.max(0, size > 0 ? size - 1 : 0),
+        `Instance XNOR pop count (size ${size})`,
+      );
+      assertUnusedBitsZero(a, `instance a.xnor(b) (size ${size})`);
+    });
+
+    await t.step(`instance and(other) (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+      if (size > 0) a.setBool(0, true);
+      if (size > 0) a.setBool(1, true); // a = [1,1,0...]
+      if (size > 1) b.setBool(1, true);
+      if (size > 2) b.setBool(2, true); // b = [0,1,1,0...]
+      a.and(b); // a should be [0,1,0,0...]
+      if (size > 0) assertEquals(a.getBool(0), false);
+      if (size > 1) assertEquals(a.getBool(1), true);
+      if (size > 2) assertEquals(a.getBool(2), false);
+      assertUnusedBitsZero(a, `instance a.and(b) (size ${size})`);
+    });
+
+    await t.step(`instance or(other) (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+      if (size > 0) a.setBool(0, true); // a = [1,0,0...]
+      if (size > 1) b.setBool(1, true); // b = [0,1,0...]
+      a.or(b); // a should be [1,1,0,0...]
+      if (size > 0) assertEquals(a.getBool(0), true);
+      if (size > 1) assertEquals(a.getBool(1), true);
+      if (size > 2) assertEquals(a.getBool(2), false);
+      assertUnusedBitsZero(a, `instance a.or(b) (size ${size})`);
+    });
+
+    await t.step(`instance xor(other) (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+      if (size > 0) a.setBool(0, true);
+      if (size > 1) a.setBool(1, true); // a = [1,1,0...]
+      if (size > 1) b.setBool(1, true);
+      if (size > 2) b.setBool(2, true); // b = [0,1,1,0...]
+      a.xor(b); // a should be [1,0,1,0...]
+      if (size > 0) assertEquals(a.getBool(0), true);
+      if (size > 1) assertEquals(a.getBool(1), false);
+      if (size > 2) assertEquals(a.getBool(2), true);
+      assertUnusedBitsZero(a, `instance a.xor(b) (size ${size})`);
+    });
+
+    await t.step(`instance difference(other) (size ${size})`, () => {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+      if (size > 0) a.setBool(0, true);
+      if (size > 1) a.setBool(1, true); // a = [1,1,0...]
+      if (size > 1) b.setBool(1, true);
+      if (size > 2) b.setBool(2, true); // b = [0,1,1,0...]
+      a.difference(b); // a should be [1,0,0,0...]
+      if (size > 0) assertEquals(a.getBool(0), true);
+      if (size > 1) assertEquals(a.getBool(1), false);
+      if (size > 2) assertEquals(a.getBool(2), false);
+      assertUnusedBitsZero(a, `instance a.difference(b) (size ${size})`);
+    });
+  }
+});
+
+Deno.test("BooleanArray - Internal Utilities and Validation", async (t) => {
+  await t.step("BooleanArray.validateValue", () => {
+    assertEquals(BooleanArray.validateValue(0, 10), 0);
+    assertEquals(BooleanArray.validateValue(9, 10), 9);
+    assertThrows(() => BooleanArray.validateValue(-1, 10), RangeError, '"value" must be greater than or equal to 0.');
+    assertThrows(
+      () => BooleanArray.validateValue(10, 10),
+      RangeError,
+      "Index 10 is out of bounds for array of size 10.",
+    );
+    assertThrows(() => BooleanArray.validateValue(NaN, 10), TypeError, '"value" must be a safe integer.');
+    assertThrows(() => BooleanArray.validateValue(1.5, 10), TypeError, '"value" must be a safe integer.');
+    assertThrows(() => BooleanArray.validateValue(BooleanArray.MAX_SAFE_SIZE + 1), RangeError);
+    assertEquals(BooleanArray.validateValue(0), 0); // maxSize is optional
+    assertEquals(BooleanArray.validateValue(BooleanArray.MAX_SAFE_SIZE), BooleanArray.MAX_SAFE_SIZE);
+  });
+
+  await t.step("BooleanArray.isValidValue", () => {
+    assertEquals(BooleanArray.isValidValue(5, 10), true);
+    assertEquals(BooleanArray.isValidValue(10, 10), false);
+    assertEquals(BooleanArray.isValidValue(-1, 10), false);
+    assertEquals(BooleanArray.isValidValue(NaN, 10), false);
+    assertEquals(BooleanArray.isValidValue(BooleanArray.MAX_SAFE_SIZE + 1), false);
+    assertEquals(BooleanArray.isValidValue(0), true);
+  });
+
+  await t.step("BooleanArray.getChunk", () => {
+    assertEquals(BooleanArray.getChunk(0), 0);
+    assertEquals(BooleanArray.getChunk(31), 0);
+    assertEquals(BooleanArray.getChunk(32), 1);
+    assertEquals(BooleanArray.getChunk(63), 1);
+    assertEquals(BooleanArray.getChunk(64), 2);
+  });
+
+  await t.step("BooleanArray.getChunkCount", () => {
+    assertEquals(BooleanArray.getChunkCount(0), 0); // Note: constructor validates size >=0, but getChunkCount can take 0
+    assertEquals(BooleanArray.getChunkCount(1), 1);
+    assertEquals(BooleanArray.getChunkCount(32), 1);
+    assertEquals(BooleanArray.getChunkCount(33), 2);
+    assertEquals(BooleanArray.getChunkCount(64), 2);
+    assertEquals(BooleanArray.getChunkCount(65), 3);
+  });
+
+  await t.step("BooleanArray.getChunkOffset", () => {
+    assertEquals(BooleanArray.getChunkOffset(0), 0);
+    assertEquals(BooleanArray.getChunkOffset(31), 31);
+    assertEquals(BooleanArray.getChunkOffset(32), 0);
+    assertEquals(BooleanArray.getChunkOffset(63), 31);
+    assertEquals(BooleanArray.getChunkOffset(64), 0);
+  });
+});
+
 Deno.test("BooleanArray - forEachBool Operation", async (t) => {
   await t.step("should iterate over all set bits correctly", () => {
     const size = 65;
@@ -1041,5 +1353,84 @@ Deno.test("BooleanArray - forEachBool Operation", async (t) => {
       assertEquals(arr, array);
     });
     assert(called, "Callback should have been called");
+  });
+});
+
+Deno.test("BooleanArray - SetRange Edge Cases", async (t) => {
+  await t.step("setRange to false", () => {
+    const array = new BooleanArray(100);
+    array.setAll();
+    array.setRange(10, 20, false);
+    for (let i = 0; i < 100; i++) {
+      if (i >= 10 && i < 30) {
+        assertEquals(array.getBool(i), false, `Bit ${i} should be false`);
+      } else {
+        assertEquals(array.getBool(i), true, `Bit ${i} should be true`);
+      }
+    }
+    assertEquals(array.getPopulationCount(), 80);
+  });
+
+  await t.step("setRange covering entire array", () => {
+    const array = new BooleanArray(65);
+    array.setRange(0, 65, true);
+    assertEquals(array.getPopulationCount(), 65);
+    assertUnusedBitsZero(array, "setRange full true");
+    array.setRange(0, 65, false);
+    assertEquals(array.getPopulationCount(), 0);
+    assertUnusedBitsZero(array, "setRange full false");
+  });
+
+  await t.step("setRange across multiple chunks (aligned and misaligned start/end)", () => {
+    const array = new BooleanArray(100); // 3 full chunks + 4 bits
+    // Set bits 30-70 to true (misaligned start, misaligned end, crosses chunk 1 and 2)
+    array.setRange(30, 41, true); // 30 to 70 inclusive
+
+    for (let i = 0; i < 100; i++) {
+      if (i >= 30 && i <= 70) {
+        assertEquals(array.getBool(i), true, `Bit ${i} (30-70) should be true`);
+      } else {
+        assertEquals(array.getBool(i), false, `Bit ${i} (outside 30-70) should be false`);
+      }
+    }
+    assertEquals(array.getPopulationCount(), 41);
+    assertUnusedBitsZero(array, "setRange 30-70 true");
+
+    array.setRange(30, 41, false);
+    assertEquals(array.getPopulationCount(), 0);
+    assertUnusedBitsZero(array, "setRange 30-70 false");
+  });
+
+  await t.step("setRange with count 0", () => {
+    const array = new BooleanArray(100);
+    array.setAll();
+    array.setRange(10, 0, false); // Should do nothing
+    assertEquals(array.getPopulationCount(), 100);
+  });
+});
+
+Deno.test("BooleanArray - isEmpty extended tests", async (t) => {
+  await t.step("isEmpty after not() on non-aligned array", () => {
+    const size = 33;
+    const array = new BooleanArray(size);
+    array.setAll(); // All true
+    assertEquals(array.isEmpty(), false);
+    array.not(); // All false (logically)
+    assertEquals(array.isEmpty(), true, "Should be empty after not() on all true");
+    assertUnusedBitsZero(array, "isEmpty after not()");
+    array.not(); // All true again
+    assertEquals(array.isEmpty(), false);
+    assertUnusedBitsZero(array, "isEmpty after not() not()");
+  });
+
+  await t.step("isEmpty after nand() resulting in empty on non-aligned array", () => {
+    const size = 33;
+    const a = new BooleanArray(size);
+    const b = new BooleanArray(size);
+    a.setAll();
+    b.setAll();
+    const result = BooleanArray.nand(a, b);
+    assertEquals(result.isEmpty(), true, "NAND(all_true, all_true) should be empty");
+    assertUnusedBitsZero(result, "isEmpty after NAND");
   });
 });

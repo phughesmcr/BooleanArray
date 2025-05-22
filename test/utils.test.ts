@@ -2,62 +2,7 @@
 /// <reference lib="dom" />
 
 import { assertEquals } from "jsr:@std/assert@^1.0.10";
-import { and, countChunk, difference, invalidNumber, nand, nor, not, or, xnor, xor } from "../src/utils.ts";
-
-Deno.test("Bitwise Operations", async (t) => {
-  const testCases = [
-    { a: 0b1010, b: 0b0110, name: "Positive Numbers" },
-    { a: 0, b: 0, name: "Zeroes" },
-    { a: 0xFFFFFFFF, b: 0xFFFFFFFF, name: "All Bits Set" }, // Max 32-bit unsigned int
-    { a: 0xFFFFFFFF, b: 0, name: "All Bits Set and Zero" },
-    { a: 0b1, b: 0b10, name: "Single Bits" },
-    { a: 0x55555555, b: 0xAAAAAAAA, name: "Alternating Patterns" }, // 0101... and 1010...
-  ];
-
-  for (const { a, b, name } of testCases) {
-    await t.step(`and - ${name}`, () => {
-      assertEquals(and(a, b), a & b);
-    });
-
-    await t.step(`difference - ${name}`, () => {
-      assertEquals(difference(a, b), a & ~b);
-    });
-
-    await t.step(`nand - ${name}`, () => {
-      assertEquals(nand(a, b), ~(a & b));
-    });
-
-    await t.step(`nor - ${name}`, () => {
-      assertEquals(nor(a, b), ~(a | b));
-    });
-
-    await t.step(`or - ${name}`, () => {
-      assertEquals(or(a, b), a | b);
-    });
-
-    await t.step(`xor - ${name}`, () => {
-      assertEquals(xor(a, b), a ^ b);
-    });
-
-    await t.step(`xnor - ${name}`, () => {
-      assertEquals(xnor(a, b), ~(a ^ b));
-    });
-  }
-
-  // Specific tests for 'not' as it's unary
-  const notTestCases = [
-    { a: 0b1010, name: "Positive Number" },
-    { a: 0, name: "Zero" },
-    { a: 0xFFFFFFFF, name: "All Bits Set" },
-    { a: 0x55555555, name: "Alternating Pattern" },
-  ];
-
-  for (const { a, name } of notTestCases) {
-    await t.step(`not - ${name}`, () => {
-      assertEquals(not(a), ~a);
-    });
-  }
-});
+import { countChunk, invalidNumber } from "../src/utils.ts";
 
 Deno.test("invalidNumber", async (t) => {
   await t.step("should return false for valid numbers", () => {
