@@ -81,7 +81,7 @@ export class BooleanArray extends Uint32Array {
   static fromArray(arr: Array<number>, size: number): BooleanArray {
     const pool = new BooleanArray(size);
     if (arr.some(invalidNumber)) {
-      throw new TypeError("BitPool.fromArray: array contains non-number or NaN values");
+      throw new TypeError("BooleanArray.fromArray: array contains non-number or NaN values");
     }
     for (let i = 0; i < arr.length; i++) {
       pool.setBool(arr[i]!, true);
