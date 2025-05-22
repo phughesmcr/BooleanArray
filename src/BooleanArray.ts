@@ -354,7 +354,7 @@ export class BooleanArray extends Uint32Array {
   ): this {
     if (count === 0) return this;
     BooleanArray.validateValue(startIndex, this.#size);
-    BooleanArray.validateValue(startIndex + count, this.#size);
+    BooleanArray.validateValue(startIndex + count, this.#size + 1);
 
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
@@ -393,12 +393,9 @@ export class BooleanArray extends Uint32Array {
    * @throws {RangeError} if `count` is out of bounds
    */
   getBools(startIndex: number, count: number): boolean[] {
+    if (count === 0) return [];
     BooleanArray.validateValue(startIndex, this.#size);
-    BooleanArray.validateValue(count);
-    if (startIndex + count > this.#size) {
-      throw new RangeError("Range exceeds array bounds");
-    }
-
+    BooleanArray.validateValue(startIndex + count, this.#size + 1);
     const result: boolean[] = new Array(count);
     for (let i = 0; i < count; i++) {
       result[i] = this.getBool(startIndex + i);
@@ -491,9 +488,11 @@ export class BooleanArray extends Uint32Array {
     }
 
     // Handle last chunk
+    if (this.length > 0) { // Ensure there is at least one chunk to process
     const remainingBits = this.#size % BooleanArray.BITS_PER_INT;
     const lastChunkMask = remainingBits === 0 ? BooleanArray.ALL_BITS : ((1 << remainingBits) - 1) >>> 0;
     count += countChunk(this[lastIndex]! & lastChunkMask);
+    }
 
     return count;
   }
@@ -609,27 +608,11 @@ export class BooleanArray extends Uint32Array {
    * @throws {RangeError} if `count` is out of bounds
    */
   setRange(startIndex: number, count: number, value: boolean): this {
+    if (count === 0) {
+      return this;
+    }
     BooleanArray.validateValue(startIndex, this.#size);
-    BooleanArray.validateValue(count);
-    if (startIndex + count > this.#size) {
-      throw new RangeError("Range exceeds array bounds");
-    }
-
-    // Fast path for large ranges
-    if (count > BooleanArray.LARGE_RANGE_THRESHOLD) {
-      const fillValue = value ? BooleanArray.ALL_BITS : 0;
-      this.fill(fillValue, startIndex >>> 5, (startIndex + count + 31) >>> 5);
-      return this;
-    }
-
-    // Fast path for small ranges that fit in a single chunk
-    if (count <= 32 && BooleanArray.getChunk(startIndex) === BooleanArray.getChunk(startIndex + count - 1)) {
-      const chunk = BooleanArray.getChunk(startIndex);
-      const startOffset = BooleanArray.getChunkOffset(startIndex);
-      const mask = ((1 << count) - 1) << startOffset;
-      this[chunk] = value ? (this[chunk]! | mask) : (this[chunk]! & ~mask);
-      return this;
-    }
+    BooleanArray.validateValue(startIndex + count, this.#size + 1);
 
     const startChunk = BooleanArray.getChunk(startIndex);
     const endChunk = BooleanArray.getChunk(startIndex + count - 1);
