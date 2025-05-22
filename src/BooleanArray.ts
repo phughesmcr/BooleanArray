@@ -340,6 +340,37 @@ export class BooleanArray extends Uint32Array {
     return BooleanArray.operate(this, other, difference, true) as this;
   }
 
+  /**
+   * Iterates over each bit in the array
+   * @param callback the callback to execute for each bit
+   * @param startIndex the start index to iterate from [default = 0]
+   * @param count the number of booleans to iterate over [default = this.size - startIndex]
+   * @returns the current BooleanArray
+   */
+  forEachBool(
+    callback: (index: number, value: boolean, array: this) => void,
+    startIndex: number = 0,
+    count: number = this.#size - startIndex,
+  ): this {
+    if (count === 0) return this;
+    BooleanArray.validateValue(startIndex, this.#size);
+    BooleanArray.validateValue(startIndex + count, this.#size);
+
+    let currentChunkIndex = -1;
+    let currentChunkValue = 0;
+
+    const endIndex = startIndex + count;
+    for (let i = startIndex; i < endIndex; i++) {
+      const chunkForThisBit = BooleanArray.getChunk(i);
+      if (chunkForThisBit !== currentChunkIndex) {
+        currentChunkIndex = chunkForThisBit;
+        currentChunkValue = this[currentChunkIndex]!;
+      }
+      const offset = BooleanArray.getChunkOffset(i);
+      callback(i, (currentChunkValue & (1 << offset)) !== 0, this);
+    }
+    return this;
+  }
 
   /**
    * Get the boolean state of a bit

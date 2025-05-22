@@ -989,3 +989,57 @@ Deno.test("BooleanArray - Static fromObjects Operation", async (t) => {
     assertEquals(array.getBool(2), true);
   });
 });
+
+Deno.test("BooleanArray - forEachBool Operation", async (t) => {
+  await t.step("should iterate over all set bits correctly", () => {
+    const size = 65;
+    const array = new BooleanArray(size);
+    array.setBool(0, true);
+    array.setBool(32, true);
+    array.setBool(64, true);
+
+    const visited: Record<number, boolean> = {};
+    array.forEachBool((index, value) => {
+      visited[index] = value;
+    });
+
+    assertEquals(Object.keys(visited).length, size);
+    assertEquals(visited[0], true);
+    assertEquals(visited[1], false);
+    assertEquals(visited[32], true);
+    assertEquals(visited[64], true);
+  });
+
+  await t.step("should respect startIndex and count", () => {
+    const array = new BooleanArray(100);
+    array.setRange(10, 5, true); // 10, 11, 12, 13, 14 are true
+
+    const visited: Record<number, boolean> = {};
+    array.forEachBool(
+      (index, value) => {
+        visited[index] = value;
+      },
+      12,
+      5,
+    ); // Start at 12, count 5 elements (12, 13, 14, 15, 16)
+
+    assertEquals(Object.keys(visited).length, 5);
+    assertEquals(visited[12], true);
+    assertEquals(visited[13], true);
+    assertEquals(visited[14], true);
+    assertEquals(visited[15], false);
+    assertEquals(visited[16], false);
+    assert(visited[11] === undefined, "Should not visit index 11");
+    assert(visited[17] === undefined, "Should not visit index 17");
+  });
+
+  await t.step("should pass the array itself as the third argument", () => {
+    const array = new BooleanArray(5);
+    let called = false;
+    array.forEachBool((_index, _value, arr) => {
+      called = true;
+      assertEquals(arr, array);
+    });
+    assert(called, "Callback should have been called");
+  });
+});
