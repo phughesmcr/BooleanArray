@@ -84,6 +84,9 @@ export function xnor(a: number, b: number): number {
   return ~(a ^ b);
 }
 
+/** Utility function to check if a value is invalid */
+const invalidNumber = (n: number) => typeof n !== "number" || isNaN(n);
+
 /**
  * Count set bits in chunk
  * @param value the value to count the set bits in
@@ -169,7 +172,7 @@ export class BooleanArray extends Uint32Array {
    */
   static fromArray(arr: Array<number>, size: number): BooleanArray {
     const pool = new BooleanArray(size);
-    if (arr.some((n) => typeof n !== "number" || isNaN(n))) {
+    if (arr.some(invalidNumber)) {
       throw new TypeError("BitPool.fromArray: array contains non-number or NaN values");
     }
     for (let i = 0; i < arr.length; i++) {
@@ -180,15 +183,17 @@ export class BooleanArray extends Uint32Array {
 
   /**
    * Create a BooleanArray from an object, using the object's keys as the bit indices.
-   * @param obj The object to create the BooleanArray from
    * @param size The size of the BooleanArray
+   * @param key The key of the object to create the BooleanArray from
+   * @param objs The array of objects to create the BooleanArray from
    * @returns A new BooleanArray instance
    */
   static fromObjects<T>(size: number, key: keyof T, objs: T[]): BooleanArray {
-    return objs.reduce((bitfield, obj) => {
-      bitfield.setBool(obj[key] as number, true);
-      return bitfield;
-    }, new BooleanArray(size));
+    const result = new BooleanArray(size);
+    for (const obj of objs) {
+      result.setBool(obj[key] as number, true);
+    }
+    return result;
   }
 
   /**
@@ -280,6 +285,7 @@ export class BooleanArray extends Uint32Array {
   /**
    * Validate a value
    * @param value the value to validate
+   * @param maxSize the maximum size of the array
    * @returns the validated value
    * @throws {TypeError} if `value` is not a safe integer
    * @throws {RangeError} if `value` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
