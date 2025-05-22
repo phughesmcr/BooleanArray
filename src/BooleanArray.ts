@@ -243,6 +243,21 @@ export class BooleanArray extends Uint32Array {
   }
 
   /**
+   * Validate a value
+   * @param value the value to validate
+   * @param maxSize the maximum size of the array
+   * @returns `true` if the value is valid, `false` otherwise
+   */
+  static isValidValue(value: number, maxSize?: number): boolean {
+    try {
+      BooleanArray.validateValue(value, maxSize);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Performs a bitwise XOR operation with two BooleanArrays
    * @param a the first BooleanArray
    * @param b the second BooleanArray
