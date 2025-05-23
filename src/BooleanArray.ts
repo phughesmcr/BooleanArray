@@ -234,7 +234,7 @@ export class BooleanArray extends Uint32Array {
     if (size < 1) {
       throw new RangeError('"size" must be greater than or equal to 1.');
     }
-    super(BooleanArray.getChunkCount(size));
+    super((size + BooleanArray.CHUNK_MASK) >>> BooleanArray.CHUNK_SHIFT);
     this.#size = size;
   }
 
