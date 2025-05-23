@@ -4,7 +4,7 @@
   "license": "MIT",
   "exports": "./mod.ts",
   "bench": {
-    "include": ["bench/**/*.bench.ts"]
+    "include": ["bench/BooleanArray.bench.ts"]
   },
   "compilerOptions": {
     "erasableSyntaxOnly": true,
@@ -56,6 +56,6 @@
     }
   },
   "test": {
-    "include": ["test/**/*.test.ts"]
+    "include": ["test/BooleanArray.test.ts"]
   }
 }

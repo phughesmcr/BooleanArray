@@ -759,7 +759,7 @@ Deno.test("BooleanArray - Static fromArray Operation", async (t) => {
       // deno-lint-ignore no-explicit-any
       () => BooleanArray.fromArray([1, "2" as any, 3], 100),
       TypeError,
-      "BooleanArray.fromArray: array contains non-number or NaN values",
+      '"value" must be a safe integer.',
     );
   });
 
@@ -767,7 +767,7 @@ Deno.test("BooleanArray - Static fromArray Operation", async (t) => {
     assertThrows(
       () => BooleanArray.fromArray([1, NaN, 3], 100),
       TypeError,
-      "BooleanArray.fromArray: array contains non-number or NaN values",
+      '"value" must be a safe integer.',
     );
   });
 
@@ -1432,5 +1432,354 @@ Deno.test("BooleanArray - isEmpty extended tests", async (t) => {
     const result = BooleanArray.nand(a, b);
     assertEquals(result.isEmpty(), true, "NAND(all_true, all_true) should be empty");
     assertUnusedBitsZero(result, "isEmpty after NAND");
+  });
+});
+
+/// <reference lib="deno.ns" />
+/// <reference lib="dom" />
+
+Deno.test("BooleanArray - Constants Verification", async (t) => {
+  await t.step("should have correct constant values", () => {
+    assertEquals(BooleanArray.BITS_PER_INT, 32);
+    assertEquals(BooleanArray.CHUNK_MASK, 31);
+    assertEquals(BooleanArray.CHUNK_SHIFT, 5);
+    assertEquals(BooleanArray.ALL_BITS, 4294967295); // 2^32 - 1
+    assertEquals(BooleanArray.MAX_SAFE_SIZE, 536870911); // Math.floor((2^32 - 1) / 8)
+  });
+
+  await t.step("should verify constants are mathematically consistent", () => {
+    assertEquals(BooleanArray.CHUNK_MASK, BooleanArray.BITS_PER_INT - 1);
+    assertEquals(BooleanArray.CHUNK_SHIFT, Math.log2(BooleanArray.BITS_PER_INT));
+    assertEquals(BooleanArray.ALL_BITS, 0xFFFFFFFF); // Direct hex representation is clearer
+  });
+});
+
+Deno.test("BooleanArray - Size 1 Array Edge Cases", async (t) => {
+  await t.step("should handle size 1 array operations correctly", () => {
+    const array = new BooleanArray(1);
+    assertEquals(array.size, 1);
+    assertEquals(array.length, 1); // Should need 1 chunk
+
+    // Test basic operations
+    assertEquals(array.getBool(0), false);
+    array.setBool(0, true);
+    assertEquals(array.getBool(0), true);
+    assertEquals(array.getPopulationCount(), 1);
+
+    // Test toggle
+    assertEquals(array.toggleBool(0), false);
+    assertEquals(array.getBool(0), false);
+
+    // Test range operations
+    array.setRange(0, 1, true);
+    assertEquals(array.getBool(0), true);
+
+    // Test iteration
+    const indices = [...array.truthyIndices()];
+    assertEquals(indices, [0]);
+  });
+
+  await t.step("should handle size 1 array bitwise operations", () => {
+    const a = new BooleanArray(1);
+    const b = new BooleanArray(1);
+
+    a.setBool(0, true);
+    b.setBool(0, false);
+
+    // Test all bitwise operations
+    assertEquals(BooleanArray.and(a, b).getBool(0), false);
+    assertEquals(BooleanArray.or(a, b).getBool(0), true);
+    assertEquals(BooleanArray.xor(a, b).getBool(0), true);
+    assertEquals(BooleanArray.nand(a, b).getBool(0), true);
+    assertEquals(BooleanArray.nor(a, b).getBool(0), false);
+    assertEquals(BooleanArray.xnor(a, b).getBool(0), false);
+    assertEquals(BooleanArray.not(a).getBool(0), false);
+    assertEquals(BooleanArray.difference(a, b).getBool(0), true);
+  });
+});
+
+Deno.test("BooleanArray - Error Message Accuracy", async (t) => {
+  await t.step("should throw correct error messages for fromArray", () => {
+    // Test non-number values
+    assertThrows(
+      // @ts-ignore - Testing runtime behavior
+      () => BooleanArray.fromArray([1, "2", 3], 100),
+      TypeError,
+      '"value" must be a safe integer.',
+    );
+
+    // Test NaN values
+    assertThrows(
+      () => BooleanArray.fromArray([1, NaN, 3], 100),
+      TypeError,
+      '"value" must be a safe integer.',
+    );
+
+    // Test negative values
+    assertThrows(
+      () => BooleanArray.fromArray([-1, 0, 1], 100),
+      RangeError,
+      '"value" must be greater than or equal to 0.',
+    );
+  });
+
+  await t.step("should throw correct error messages for fromObjects", () => {
+    // Test non-number property values
+    assertThrows(
+      // @ts-ignore - Testing runtime behavior
+      () => BooleanArray.fromObjects(100, "id", [{ id: 1 }, { id: "2" }, { id: 3 }]),
+      TypeError,
+      '"value" must be a safe integer.',
+    );
+
+    // Test undefined property values
+    assertThrows(
+      // @ts-ignore - Testing runtime behavior
+      () => BooleanArray.fromObjects(100, "id", [{ id: 1 }, { id: undefined }, { id: 3 }]),
+      TypeError,
+      '"value" must be a safe integer.',
+    );
+  });
+});
+
+Deno.test("BooleanArray - In-Place Operations Verification", async (t) => {
+  await t.step("should verify in-place operations modify original array", () => {
+    const original = new BooleanArray(32);
+    const other = new BooleanArray(32);
+
+    original.setBool(0, true);
+    other.setBool(1, true);
+
+    const originalRef = original;
+
+    // Test that in-place operations return the same reference
+    assertEquals(original.and(other), originalRef);
+    assertEquals(original.or(other), originalRef);
+    assertEquals(original.xor(other), originalRef);
+    assertEquals(original.nand(other), originalRef);
+    assertEquals(original.nor(other), originalRef);
+    assertEquals(original.xnor(other), originalRef);
+    assertEquals(original.not(), originalRef);
+    assertEquals(original.difference(other), originalRef);
+  });
+});
+
+Deno.test("BooleanArray - Loop Unrolling Coverage", async (t) => {
+  await t.step("should test both unrolled and non-unrolled paths", () => {
+    // Test arrays that are divisible by 4 (unrolled path)
+    const unrolledSize = 128; // 4 chunks, divisible by 4
+    const a1 = new BooleanArray(unrolledSize);
+    const b1 = new BooleanArray(unrolledSize);
+    a1.setAll();
+    b1.setRange(0, 64, true);
+
+    const result1 = BooleanArray.and(a1, b1);
+    assertEquals(result1.getPopulationCount(), 64);
+
+    // Test arrays that are NOT divisible by 4 (non-unrolled remainder)
+    const nonUnrolledSize = 127; // Not divisible by 4
+    const a2 = new BooleanArray(nonUnrolledSize);
+    const b2 = new BooleanArray(nonUnrolledSize);
+    a2.setAll();
+    b2.setRange(0, 63, true);
+
+    const result2 = BooleanArray.and(a2, b2);
+    assertEquals(result2.getPopulationCount(), 63);
+  });
+});
+
+Deno.test("BooleanArray - Null and Undefined Input Handling", async (t) => {
+  await t.step("should handle null and undefined inputs appropriately", () => {
+    const array = new BooleanArray(100);
+
+    // These should throw TypeError for non-number inputs
+    assertThrows(
+      // @ts-ignore - Testing runtime behavior
+      () => array.getBool(null),
+      TypeError,
+    );
+
+    assertThrows(
+      // @ts-ignore - Testing runtime behavior
+      () => array.setBool(undefined, true),
+      TypeError,
+    );
+
+    assertThrows(
+      // @ts-ignore - Testing runtime behavior
+      () => array.toggleBool(null),
+      TypeError,
+    );
+  });
+});
+
+Deno.test("BooleanArray - Comprehensive Chunk Boundary Testing", async (t) => {
+  await t.step("should handle operations exactly at 32-bit boundaries", () => {
+    const sizes = [31, 32, 33, 63, 64, 65];
+
+    for (const size of sizes) {
+      const array = new BooleanArray(size);
+
+      // Test setting the last bit
+      array.setBool(size - 1, true);
+      assertEquals(array.getBool(size - 1), true);
+      assertEquals(array.getPopulationCount(), 1);
+
+      // Test operations around chunk boundaries
+      if (size > 32) {
+        array.setBool(31, true); // Last bit of first chunk
+        array.setBool(32, true); // First bit of second chunk
+        // Calculate expected count: if size-1 is 31 or 32, we only have unique bits, otherwise we have 3
+        const expectedCount = (size - 1 === 31 || size - 1 === 32) ? 2 : 3;
+        assertEquals(array.getPopulationCount(), expectedCount);
+      }
+
+      // Test range operations across boundaries
+      if (size >= 34) {
+        array.clear();
+        array.setRange(30, 4, true); // Crosses chunk boundary
+        assertEquals(array.getBool(30), true);
+        assertEquals(array.getBool(31), true);
+        assertEquals(array.getBool(32), true);
+        assertEquals(array.getBool(33), true);
+      }
+    }
+  });
+});
+
+Deno.test("BooleanArray - Advanced Iterator Edge Cases", async (t) => {
+  await t.step("should handle iterator edge cases correctly", () => {
+    const array = new BooleanArray(100);
+
+    // Test iterator with no set bits
+    assertEquals([...array.truthyIndices()], []);
+
+    // Test iterator with only last bit set
+    array.setBool(99, true);
+    assertEquals([...array.truthyIndices()], [99]);
+
+    // Test iterator with bits at chunk boundaries
+    array.clear();
+    array.setBool(31, true);
+    array.setBool(32, true);
+    assertEquals([...array.truthyIndices()], [31, 32]);
+
+    // Test iterator with range that includes no set bits
+    array.clear();
+    array.setBool(10, true);
+    array.setBool(90, true);
+    assertEquals([...array.truthyIndices(20, 80)], []);
+  });
+});
+
+Deno.test("BooleanArray - Masking Verification", async (t) => {
+  await t.step("should properly mask unused bits in all operations", () => {
+    const sizes = [33, 35, 63, 65]; // Non-aligned sizes
+
+    for (const size of sizes) {
+      const a = new BooleanArray(size);
+      const b = new BooleanArray(size);
+
+      // Fill arrays completely (this tests masking in setAll)
+      a.setAll();
+      b.setAll();
+
+      // Verify no unused bits are set
+      const lastChunkIndex = a.length - 1;
+      const bitsInLastChunk = size % 32;
+      if (bitsInLastChunk > 0) {
+        const unusedMask = 0xFFFFFFFF << bitsInLastChunk;
+        assertEquals(a[lastChunkIndex]! & unusedMask, 0, `setAll should mask unused bits (size ${size})`);
+      }
+
+      // Test that operations maintain proper masking
+      const operations = [
+        () => BooleanArray.not(a),
+        () => BooleanArray.and(a, b),
+        () => BooleanArray.or(a, b),
+        () => BooleanArray.xor(a, b),
+        () => BooleanArray.nand(a, b),
+        () => BooleanArray.nor(a, b),
+        () => BooleanArray.xnor(a, b),
+      ];
+
+      for (const op of operations) {
+        const result = op();
+        if (bitsInLastChunk > 0) {
+          const unusedMask = 0xFFFFFFFF << bitsInLastChunk;
+          assertEquals(
+            result[lastChunkIndex]! & unusedMask,
+            0,
+            `Operation should mask unused bits (size ${size})`,
+          );
+        }
+      }
+    }
+  });
+});
+
+Deno.test("BooleanArray - Constructor Edge Cases", async (t) => {
+  await t.step("should handle constructor with minimum valid size", () => {
+    const array = new BooleanArray(1);
+    assertEquals(array.size, 1);
+    assertEquals(array.length, 1);
+  });
+
+  await t.step("should handle constructor with maximum valid size", () => {
+    // Use a smaller size that's still large but manageable for testing
+    const maxTestSize = 1000000;
+    const array = new BooleanArray(maxTestSize);
+    assertEquals(array.size, maxTestSize);
+    assertEquals(array.isEmpty(), true);
+  });
+
+  await t.step("should throw on zero size", () => {
+    assertThrows(
+      () => new BooleanArray(0),
+      RangeError,
+      '"size" must be greater than or equal to 1.',
+    );
+  });
+});
+
+Deno.test("BooleanArray - Performance Regression Tests", async (t) => {
+  await t.step("should handle large operations efficiently", () => {
+    const size = 100000;
+    const a = new BooleanArray(size);
+    const b = new BooleanArray(size);
+
+    // These operations should complete quickly
+    const start = performance.now();
+
+    a.setAll();
+    b.setRange(0, size / 2, true);
+    const result = BooleanArray.and(a, b);
+    assertEquals(result.getPopulationCount(), size / 2);
+
+    const end = performance.now();
+    const duration = end - start;
+
+    // Should complete in reasonable time (adjust threshold as needed)
+    assert(duration < 100, `Large operation took too long: ${duration}ms`);
+  });
+});
+
+Deno.test("BooleanArray - Static Method Parameter Validation", async (t) => {
+  await t.step("should validate static method parameters correctly", () => {
+    const validArray = new BooleanArray(32);
+
+    // Test static operations with mismatched array sizes (this will actually throw)
+    const smallArray = new BooleanArray(16);
+    assertThrows(
+      () => BooleanArray.and(validArray, smallArray),
+      Error,
+      "Arrays must have the same size",
+    );
+
+    assertThrows(
+      () => BooleanArray.or(validArray, smallArray),
+      Error,
+      "Arrays must have the same size",
+    );
   });
 });

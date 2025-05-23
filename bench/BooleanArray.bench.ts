@@ -2,6 +2,7 @@
 /// <reference lib="dom" />
 
 import { BooleanArray } from "../src/BooleanArray.ts";
+import { and, not, or } from "../src/methods.ts";
 
 // Add before benchmarks
 const warmupArray = new BooleanArray(1024);
@@ -260,6 +261,38 @@ Deno.bench({
   group: "bitwise",
   fn: () => {
     BooleanArray.xor(a, b);
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray.nand()",
+  group: "bitwise",
+  fn: () => {
+    BooleanArray.nand(a, b);
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray.nor()",
+  group: "bitwise",
+  fn: () => {
+    BooleanArray.nor(a, b);
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray.not()",
+  group: "bitwise",
+  fn: () => {
+    BooleanArray.not(a);
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray.xnor()",
+  group: "bitwise",
+  fn: () => {
+    BooleanArray.xnor(a, b);
   },
 });
 
@@ -1396,5 +1429,325 @@ Deno.bench({
   group: "fromObjects-duplicates",
   fn: () => {
     BooleanArray.fromObjects<{ id: number }>(1000, "id", duplicateObjects);
+  },
+});
+
+// Instance vs Static method comparison for bitwise operations
+const instanceA = new BooleanArray(1024);
+const instanceB = new BooleanArray(1024);
+
+// Setup some patterns for instance methods
+instanceA.setRange(0, 512, true);
+instanceB.setRange(256, 512, true);
+
+Deno.bench({
+  name: "instance.and() - in-place",
+  group: "instance-bitwise",
+  baseline: true,
+  fn: () => {
+    const a = instanceA.clone();
+    a.and(instanceB);
+  },
+});
+
+Deno.bench({
+  name: "instance.or() - in-place",
+  group: "instance-bitwise",
+  fn: () => {
+    const a = instanceA.clone();
+    a.or(instanceB);
+  },
+});
+
+Deno.bench({
+  name: "instance.xor() - in-place",
+  group: "instance-bitwise",
+  fn: () => {
+    const a = instanceA.clone();
+    a.xor(instanceB);
+  },
+});
+
+Deno.bench({
+  name: "instance.nand() - in-place",
+  group: "instance-bitwise",
+  fn: () => {
+    const a = instanceA.clone();
+    a.nand(instanceB);
+  },
+});
+
+Deno.bench({
+  name: "instance.nor() - in-place",
+  group: "instance-bitwise",
+  fn: () => {
+    const a = instanceA.clone();
+    a.nor(instanceB);
+  },
+});
+
+Deno.bench({
+  name: "instance.not() - in-place",
+  group: "instance-bitwise",
+  fn: () => {
+    const a = instanceA.clone();
+    a.not();
+  },
+});
+
+Deno.bench({
+  name: "instance.xnor() - in-place",
+  group: "instance-bitwise",
+  fn: () => {
+    const a = instanceA.clone();
+    a.xnor(instanceB);
+  },
+});
+
+Deno.bench({
+  name: "instance.difference() - in-place",
+  group: "instance-bitwise",
+  fn: () => {
+    const a = instanceA.clone();
+    a.difference(instanceB);
+  },
+});
+
+// forEachBool benchmarks
+const forEachTestArray = new BooleanArray(10_000);
+for (let i = 0; i < 10_000; i += 10) {
+  forEachTestArray.setBool(i, true);
+}
+
+const forEachEmptyArray = new BooleanArray(10_000);
+const forEachDenseArray = new BooleanArray(10_000);
+forEachDenseArray.setAll();
+
+Deno.bench({
+  name: "forEachBool - sparse array (10% set)",
+  group: "forEachBool",
+  baseline: true,
+  fn: () => {
+    forEachTestArray.forEachBool((_index, _value) => {
+      // Just iterate
+    });
+  },
+});
+
+Deno.bench({
+  name: "forEachBool - empty array",
+  group: "forEachBool",
+  fn: () => {
+    forEachEmptyArray.forEachBool((_index, _value) => {
+      // Just iterate
+    });
+  },
+});
+
+Deno.bench({
+  name: "forEachBool - dense array (100% set)",
+  group: "forEachBool",
+  fn: () => {
+    forEachDenseArray.forEachBool((_index, _value) => {
+      // Just iterate
+    });
+  },
+});
+
+Deno.bench({
+  name: "forEachBool - partial range (1000 elements)",
+  group: "forEachBool",
+  fn: () => {
+    forEachTestArray.forEachBool(
+      (_index, _value) => {
+        // Just iterate
+      },
+      1000,
+      1000,
+    );
+  },
+});
+
+// setAll benchmarks
+const setAllSmallArray = new BooleanArray(32);
+const setAllMediumArray = new BooleanArray(1024);
+const setAllLargeArray = new BooleanArray(1_000_000);
+
+Deno.bench({
+  name: "setAll - small array",
+  group: "setAll",
+  baseline: true,
+  fn: () => {
+    setAllSmallArray.setAll();
+  },
+});
+
+Deno.bench({
+  name: "setAll - medium array",
+  group: "setAll",
+  fn: () => {
+    setAllMediumArray.setAll();
+  },
+});
+
+Deno.bench({
+  name: "setAll - large array",
+  group: "setAll",
+  fn: () => {
+    setAllLargeArray.setAll();
+  },
+});
+
+// In-place vs Copy operation benchmarks
+const copyTestA = new BooleanArray(1024);
+const copyTestB = new BooleanArray(1024);
+copyTestA.setRange(0, 512, true);
+copyTestB.setRange(256, 768, true);
+
+Deno.bench({
+  name: "and() - copy operation (inPlace=false)",
+  group: "inPlace-comparison",
+  baseline: true,
+  fn: () => {
+    and(copyTestA, copyTestB, false);
+  },
+});
+
+Deno.bench({
+  name: "and() - in-place operation (inPlace=true)",
+  group: "inPlace-comparison",
+  fn: () => {
+    const a = copyTestA.clone();
+    and(a, copyTestB, true);
+  },
+});
+
+Deno.bench({
+  name: "or() - copy operation (inPlace=false)",
+  group: "inPlace-comparison",
+  fn: () => {
+    or(copyTestA, copyTestB, false);
+  },
+});
+
+Deno.bench({
+  name: "or() - in-place operation (inPlace=true)",
+  group: "inPlace-comparison",
+  fn: () => {
+    const a = copyTestA.clone();
+    or(a, copyTestB, true);
+  },
+});
+
+Deno.bench({
+  name: "not() - copy operation (inPlace=false)",
+  group: "inPlace-comparison",
+  fn: () => {
+    not(copyTestA, false);
+  },
+});
+
+Deno.bench({
+  name: "not() - in-place operation (inPlace=true)",
+  group: "inPlace-comparison",
+  fn: () => {
+    const a = copyTestA.clone();
+    not(a, true);
+  },
+});
+
+// Utility method benchmarks
+Deno.bench({
+  name: "BooleanArray.getChunk() - various indices",
+  group: "utility-methods",
+  baseline: true,
+  fn: () => {
+    BooleanArray.getChunk(0);
+    BooleanArray.getChunk(31);
+    BooleanArray.getChunk(32);
+    BooleanArray.getChunk(1023);
+    BooleanArray.getChunk(1024);
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray.getChunkOffset() - various indices",
+  group: "utility-methods",
+  fn: () => {
+    BooleanArray.getChunkOffset(0);
+    BooleanArray.getChunkOffset(15);
+    BooleanArray.getChunkOffset(31);
+    BooleanArray.getChunkOffset(32);
+    BooleanArray.getChunkOffset(1023);
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray.getChunkCount() - various sizes",
+  group: "utility-methods",
+  fn: () => {
+    BooleanArray.getChunkCount(1);
+    BooleanArray.getChunkCount(32);
+    BooleanArray.getChunkCount(33);
+    BooleanArray.getChunkCount(1024);
+    BooleanArray.getChunkCount(1_000_000);
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray.validateValue() - valid values",
+  group: "utility-methods",
+  fn: () => {
+    BooleanArray.validateValue(0);
+    BooleanArray.validateValue(100);
+    BooleanArray.validateValue(1024);
+    BooleanArray.validateValue(BooleanArray.MAX_SAFE_SIZE - 1);
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray.isValidValue() - valid values",
+  group: "utility-methods",
+  fn: () => {
+    BooleanArray.isValidValue(0);
+    BooleanArray.isValidValue(100);
+    BooleanArray.isValidValue(1024);
+    BooleanArray.isValidValue(BooleanArray.MAX_SAFE_SIZE - 1);
+  },
+});
+
+// Edge case size benchmarks
+const maxSizeArray = new BooleanArray(BooleanArray.MAX_SAFE_SIZE);
+
+Deno.bench({
+  name: "MAX_SAFE_SIZE array creation",
+  group: "edge-cases-size",
+  baseline: true,
+  fn: () => {
+    new BooleanArray(BooleanArray.MAX_SAFE_SIZE);
+  },
+});
+
+Deno.bench({
+  name: "MAX_SAFE_SIZE array - setBool",
+  group: "edge-cases-size",
+  fn: () => {
+    maxSizeArray.setBool(BooleanArray.MAX_SAFE_SIZE - 1, true);
+  },
+});
+
+Deno.bench({
+  name: "MAX_SAFE_SIZE array - getBool",
+  group: "edge-cases-size",
+  fn: () => {
+    maxSizeArray.getBool(BooleanArray.MAX_SAFE_SIZE - 1);
+  },
+});
+
+Deno.bench({
+  name: "MAX_SAFE_SIZE array - isEmpty",
+  group: "edge-cases-size",
+  fn: () => {
+    maxSizeArray.isEmpty();
   },
 });
