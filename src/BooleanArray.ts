@@ -68,7 +68,11 @@ export class BooleanArray extends Uint32Array {
     }
     const pool = new BooleanArray(size);
     for (let i = 0; i < arr.length; i++) {
-      pool.setBool(arr[i]!, true);
+      const index = arr[i]!;
+      BooleanArray.validateValue(index, size);
+      const chunk = index >>> BooleanArray.CHUNK_SHIFT;
+      const mask = 1 << (index & BooleanArray.CHUNK_MASK);
+      pool[chunk]! |= mask;
     }
     return pool;
   }
@@ -83,7 +87,11 @@ export class BooleanArray extends Uint32Array {
   static fromObjects<T>(size: number, key: keyof T, objs: T[]): BooleanArray {
     const result = new BooleanArray(size);
     for (const obj of objs) {
-      result.setBool(obj[key] as number, true);
+      const index = obj[key] as number;
+      BooleanArray.validateValue(index, size);
+      const chunk = index >>> BooleanArray.CHUNK_SHIFT;
+      const mask = 1 << (index & BooleanArray.CHUNK_MASK);
+      result[chunk]! |= mask;
     }
     return result;
   }
