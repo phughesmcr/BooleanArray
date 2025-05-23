@@ -10,16 +10,6 @@ import { countChunk, invalidNumber } from "./utils.ts";
 
 /** A fast boolean array backed by a Uint32Array */
 export class BooleanArray extends Uint32Array {
-  // Config
-
-  /** The threshold for what is considered a large array */
-  static LARGE_RANGE_THRESHOLD = 1024;
-
-  /** The threshold for what is considered a dense array */
-  static DENSE_ARRAY_THRESHOLD = 0.75;
-
-  // Static values
-
   /** The number of bits per integer */
   static readonly BITS_PER_INT = 32 as const;
 
