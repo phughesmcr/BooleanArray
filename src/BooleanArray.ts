@@ -165,7 +165,7 @@ export class BooleanArray extends Uint32Array {
    * @throws {RangeError} if `value` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
    */
   static validateValue(value: number, maxSize?: number): number {
-    if (typeof value !== "number" || Number.isNaN(value) || !Number.isSafeInteger(value)) {
+    if (!Number.isSafeInteger(value)) {
       throw new TypeError('"value" must be a safe integer.');
     }
     if (value < 0) {
