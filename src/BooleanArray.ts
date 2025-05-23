@@ -6,7 +6,6 @@
  */
 
 import { and, difference, equals, nand, nor, not, or, xnor, xor } from "./methods.ts";
-import { countChunk, invalidNumber } from "./utils.ts";
 
 /** A fast boolean array backed by a Uint32Array */
 export class BooleanArray extends Uint32Array {
@@ -63,9 +62,6 @@ export class BooleanArray extends Uint32Array {
    * @throws {TypeError} if `arr` contains non-number or NaN values
    */
   static fromArray(arr: Array<number>, size: number): BooleanArray {
-    if (arr.some(invalidNumber)) {
-      throw new TypeError("BooleanArray.fromArray: array contains non-number or NaN values");
-    }
     const pool = new BooleanArray(size);
     for (let i = 0; i < arr.length; i++) {
       const index = arr[i]!;
@@ -448,14 +444,22 @@ export class BooleanArray extends Uint32Array {
 
     // Count all full chunks
     for (let i = 0; i < lastIndex; i++) {
-      count += countChunk(this[i]!);
+      let value = this[i]!;
+      value = value - ((value >>> 1) & 0x55555555);
+      value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);
+      value = (value + (value >>> 4)) & 0x0f0f0f0f;
+      count += (value * 0x01010101) >>> 24;
     }
 
     // Handle last chunk
-    if (this.length > 0) { // Ensure there is at least one chunk to process
-      const remainingBits = this.#size % BooleanArray.BITS_PER_INT;
-      const lastChunkMask = remainingBits === 0 ? BooleanArray.ALL_BITS : ((1 << remainingBits) - 1) >>> 0;
-      count += countChunk(this[lastIndex]! & lastChunkMask);
+    if (this.length > 0) {
+      const remainingBits = this.#size % 32;
+      const lastChunkMask = remainingBits === 0 ? 4294967295 : ((1 << remainingBits) - 1) >>> 0;
+      let value = this[lastIndex]! & lastChunkMask;
+      value = value - ((value >>> 1) & 0x55555555);
+      value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);
+      value = (value + (value >>> 4)) & 0x0f0f0f0f;
+      count += (value * 0x01010101) >>> 24;
     }
 
     return count;
