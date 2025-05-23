@@ -1,5 +1,5 @@
 {
-  "typescript.validate.enable": true,
+  "deno.enable": true,
   "editor.defaultFormatter": "denoland.vscode-deno",
   "editor.formatOnSave": true,
   "files.eol": "\n",
@@ -47,5 +47,8 @@
     "tslib",
     "typechecking",
     "xnor"
-  ]
+  ],
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  }
 }
