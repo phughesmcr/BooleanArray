@@ -102,8 +102,6 @@ export class BooleanArray extends Uint32Array {
    * @returns the chunk index
    */
   static getChunk(index: number): number {
-    // This shifts the bits of `index` five places to the right, effectively dividing `index` by 32.
-    // This finds the index in the array where the specified bool would be located.
     return index >>> BooleanArray.CHUNK_SHIFT;
   }
 
