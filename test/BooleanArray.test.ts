@@ -1783,3 +1783,229 @@ Deno.test("BooleanArray - Static Method Parameter Validation", async (t) => {
     );
   });
 });
+
+Deno.test("BooleanArray - TruthyIndices Comprehensive Tests", async (t) => {
+  await t.step("should handle empty array correctly", () => {
+    const array = new BooleanArray(32);
+    const indices = [...array.truthyIndices()];
+    assertEquals(indices, []);
+  });
+
+  await t.step("should handle single bit set", () => {
+    const array = new BooleanArray(32);
+    array.setBool(5, true);
+    const indices = [...array.truthyIndices()];
+    assertEquals(indices, [5]);
+  });
+
+  await t.step("should handle multiple bits set", () => {
+    const array = new BooleanArray(32);
+    array.setBool(0, true);
+    array.setBool(15, true);
+    array.setBool(31, true);
+    const indices = [...array.truthyIndices()];
+    assertEquals(indices, [0, 15, 31]);
+  });
+
+  await t.step("should handle bits across chunk boundaries", () => {
+    const array = new BooleanArray(64);
+    array.setBool(31, true); // Last bit of first chunk
+    array.setBool(32, true); // First bit of second chunk
+    array.setBool(33, true); // Second bit of second chunk
+    const indices = [...array.truthyIndices()];
+    assertEquals(indices, [31, 32, 33]);
+  });
+
+  await t.step("should handle range parameters correctly", () => {
+    const array = new BooleanArray(100);
+    array.setBool(10, true);
+    array.setBool(20, true);
+    array.setBool(30, true);
+    array.setBool(40, true);
+    array.setBool(50, true);
+
+    // Test different ranges
+    assertEquals([...array.truthyIndices(0, 15)], [10]);
+    assertEquals([...array.truthyIndices(15, 35)], [20, 30]);
+    assertEquals([...array.truthyIndices(35, 100)], [40, 50]);
+    assertEquals([...array.truthyIndices(0, 100)], [10, 20, 30, 40, 50]);
+    assertEquals([...array.truthyIndices(11, 49)], [20, 30, 40]);
+  });
+
+  await t.step("should handle edge cases in ranges", () => {
+    const array = new BooleanArray(100);
+    array.setBool(0, true);
+    array.setBool(99, true);
+
+    // Test ranges at boundaries
+    assertEquals([...array.truthyIndices(0, 1)], [0]);
+    assertEquals([...array.truthyIndices(99, 100)], [99]);
+    assertEquals([...array.truthyIndices(1, 99)], []);
+  });
+
+  await t.step("should handle dense bit patterns", () => {
+    const array = new BooleanArray(100);
+    // Set bits 20-29 (10 consecutive bits)
+    array.setRange(20, 10, true);
+
+    const indices = [...array.truthyIndices()];
+    assertEquals(indices, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29]);
+
+    // Test with range parameters
+    assertEquals([...array.truthyIndices(22, 27)], [22, 23, 24, 25, 26]);
+  });
+
+  await t.step("should handle sparse bit patterns", () => {
+    const array = new BooleanArray(1000);
+    const expectedIndices = [0, 100, 500, 999];
+
+    for (const index of expectedIndices) {
+      array.setBool(index, true);
+    }
+
+    assertEquals([...array.truthyIndices()], expectedIndices);
+    assertEquals([...array.truthyIndices(100, 600)], [100, 500]);
+  });
+
+  await t.step("should handle all bits set", () => {
+    const array = new BooleanArray(64);
+    array.setAll();
+
+    const indices = [...array.truthyIndices()];
+    assertEquals(indices.length, 64);
+    for (let i = 0; i < 64; i++) {
+      assertEquals(indices[i], i);
+    }
+  });
+
+  await t.step("should handle bits at chunk boundaries with ranges", () => {
+    const array = new BooleanArray(100);
+    array.setBool(31, true);
+    array.setBool(32, true);
+    array.setBool(33, true);
+
+    assertEquals([...array.truthyIndices(31, 33)], [31, 32]);
+    assertEquals([...array.truthyIndices(32, 34)], [32, 33]);
+    assertEquals([...array.truthyIndices(31, 34)], [31, 32, 33]);
+  });
+
+  await t.step("should handle non-aligned array sizes", () => {
+    const sizes = [31, 33, 63, 65];
+    for (const size of sizes) {
+      const array = new BooleanArray(size);
+      array.setAll();
+      const indices = [...array.truthyIndices()];
+      assertEquals(indices.length, size, `Size ${size} should have ${size} truthy indices`);
+      for (let i = 0; i < size; i++) {
+        assertEquals(indices[i], i, `Size ${size} should have index ${i}`);
+      }
+    }
+  });
+
+  await t.step("should handle empty ranges correctly", () => {
+    const array = new BooleanArray(100);
+    array.setBool(50, true);
+
+    assertEquals([...array.truthyIndices(0, 0)], []);
+    assertEquals([...array.truthyIndices(51, 51)], []);
+    assertEquals([...array.truthyIndices(60, 50)], []); // Invalid range
+  });
+
+  await t.step("should handle ranges that start with set bits", () => {
+    const array = new BooleanArray(100);
+    array.setBool(20, true);
+    array.setBool(21, true);
+    array.setBool(22, true);
+
+    assertEquals([...array.truthyIndices(20, 23)], [20, 21, 22]);
+    assertEquals([...array.truthyIndices(21, 23)], [21, 22]);
+  });
+
+  await t.step("should handle ranges that end with set bits", () => {
+    const array = new BooleanArray(100);
+    array.setBool(20, true);
+    array.setBool(21, true);
+    array.setBool(22, true);
+
+    assertEquals([...array.truthyIndices(19, 22)], [20, 21]);
+    assertEquals([...array.truthyIndices(19, 21)], [20]);
+  });
+
+  await t.step("should handle alternating bit patterns", () => {
+    const array = new BooleanArray(32);
+    // Set every other bit
+    for (let i = 0; i < 32; i += 2) {
+      array.setBool(i, true);
+    }
+
+    const indices = [...array.truthyIndices()];
+    assertEquals(indices.length, 16);
+    for (let i = 0; i < 16; i++) {
+      assertEquals(indices[i], i * 2);
+    }
+  });
+
+  await t.step("should handle maximum valid range", () => {
+    const size = 1000;
+    const array = new BooleanArray(size);
+    array.setAll();
+
+    const indices = [...array.truthyIndices(0, size)];
+    assertEquals(indices.length, size);
+    for (let i = 0; i < size; i++) {
+      assertEquals(indices[i], i);
+    }
+  });
+
+  await t.step("should throw on invalid ranges", () => {
+    const array = new BooleanArray(100);
+
+    assertThrows(() => [...array.truthyIndices(-1)], RangeError);
+    assertThrows(() => [...array.truthyIndices(0, 101)], RangeError);
+    assertThrows(() => [...array.truthyIndices(NaN)], TypeError);
+    assertThrows(() => [...array.truthyIndices(0, NaN)], TypeError);
+    assertThrows(() => [...array.truthyIndices(1.5)], TypeError);
+    assertThrows(() => [...array.truthyIndices(0, 1.5)], TypeError);
+  });
+
+  await t.step("should handle performance with large sparse arrays", () => {
+    const size = 1_000_000;
+    const array = new BooleanArray(size);
+
+    // Set every 10000th bit
+    for (let i = 0; i < size; i += 10000) {
+      array.setBool(i, true);
+    }
+
+    const start = performance.now();
+    const indices = [...array.truthyIndices()];
+    const duration = performance.now() - start;
+
+    // Calculate expected count: (last_index - first_index) / step + 1
+    // Last index is the largest multiple of 10000 less than size
+    const lastIndex = Math.floor((size - 1) / 10000) * 10000;
+    const expectedCount = (lastIndex - 0) / 10000 + 1;
+    assertEquals(indices.length, expectedCount);
+    assert(duration < 100, `Large sparse array iteration took too long: ${duration}ms`);
+
+    // Verify the actual indices
+    for (let i = 0; i < indices.length; i++) {
+      assertEquals(indices[i], i * 10000, `Index at position ${i} should be ${i * 10000}`);
+    }
+  });
+
+  await t.step("should handle performance with large dense arrays", () => {
+    const size = 1_000_000;
+    const array = new BooleanArray(size);
+
+    // Set 1000 consecutive bits
+    array.setRange(500000, 1000, true);
+
+    const start = performance.now();
+    const indices = [...array.truthyIndices()];
+    const duration = performance.now() - start;
+
+    assertEquals(indices.length, 1000);
+    assert(duration < 100, `Large dense array iteration took too long: ${duration}ms`);
+  });
+});
