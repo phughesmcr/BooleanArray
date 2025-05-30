@@ -4,7 +4,7 @@
   "license": "MIT",
   "exports": "./mod.ts",
   "bench": {
-    "include": ["bench/BooleanArray.bench.ts"]
+    "include": ["bench/**/*.bench.ts"]
   },
   "compilerOptions": {
     "erasableSyntaxOnly": true,
@@ -38,11 +38,25 @@
     "singleQuote": false,
     "proseWrap": "always",
     "useTabs": false,
-    "exclude": ["*.md", "LICENSE"]
+    "exclude": ["example/**/*.ts", "*.md", "LICENSE"]
   },
   "lint": {
     "rules": {
-      "tags": ["recommended"]
+      "tags": [
+        "jsr",
+        "recommended"
+      ],
+      "include": [
+        "default-param-last",
+        "explicit-function-return-type",
+        "explicit-module-boundary-types",
+        "no-console",
+        "no-const-assign",
+        "no-eval",
+        "no-top-level-await",
+        "no-undef",
+        "no-useless-rename"
+      ]
     }
   },
   "tasks": {
@@ -52,10 +66,10 @@
     },
     "prep": {
       "description": "Format, lint, and check the codebase",
-      "command": "deno fmt && deno lint && deno check mod.ts src/**/*.ts"
+      "command": "deno fmt && deno lint && deno check mod.ts src/**/*.ts test/**/*.test.ts bench/**/*.bench.ts"
     }
   },
   "test": {
-    "include": ["test/BooleanArray.test.ts"]
+    "include": ["test/**/*.test.ts"]
   }
 }

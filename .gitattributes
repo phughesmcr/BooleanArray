@@ -2,7 +2,6 @@
 
 docs/*            linguist-documentation=true
 vendor/*          linguist-generated=true
-index.html        linguist-documentation=true
 
 *.css             text
 *.htm             text diff=html
