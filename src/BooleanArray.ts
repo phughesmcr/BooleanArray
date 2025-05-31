@@ -741,7 +741,7 @@ export class BooleanArray {
     BooleanArray.assertIsSafeValue(fromIndex, this.size + 1);
 
     if (fromIndex === 0) {
-      return -1;
+      return this.#getBit(0) === value ? 0 : -1;
     }
 
     // We search in the range [0, searchUpToBitIndex_inclusive]
@@ -882,7 +882,7 @@ export class BooleanArray {
 
     if (startChunk === endChunk) {
       const startOffset = startIndex & BooleanArray.CHUNK_MASK;
-      const mask = count === BooleanArray.BITS_PER_INT
+      const mask = count === BooleanArray.BITS_PER_INT && startOffset === 0
         ? BooleanArray.ALL_BITS_TRUE
         : (((1 << count) - 1) << startOffset) >>> 0;
       this.buffer[startChunk] = value ? (this.buffer[startChunk]! | mask) : (this.buffer[startChunk]! & ~mask);
