@@ -2,14 +2,13 @@
 /// <reference lib="dom" />
 
 import { BooleanArray } from "../src/BooleanArray.ts";
-import { and, not, or } from "../src/methods.ts";
 
 // Add before benchmarks
 const warmupArray = new BooleanArray(1024);
 for (let i = 0; i < 1000; i++) {
-  warmupArray.setBool(i, true);
-  warmupArray.getBool(i);
-  warmupArray.toggleBool(i);
+  warmupArray.set(i, true);
+  warmupArray.get(i);
+  warmupArray.toggle(i);
 }
 
 // Creation benchmarks
@@ -43,107 +42,107 @@ const smallArray = new BooleanArray(32);
 const mediumArray = new BooleanArray(1024);
 const largeArray = new BooleanArray(1_000_000);
 
-// getBool benchmarks
+// get benchmarks
 Deno.bench({
-  name: "getBool - small array",
-  group: "getBool",
+  name: "get - small array",
+  group: "get",
   baseline: true,
   fn: () => {
-    smallArray.getBool(16);
+    smallArray.get(16);
   },
 });
 
 Deno.bench({
-  name: "getBool - medium array",
-  group: "getBool",
+  name: "get - medium array",
+  group: "get",
   fn: () => {
-    mediumArray.getBool(512);
+    mediumArray.get(512);
   },
 });
 
 Deno.bench({
-  name: "getBool - large array",
-  group: "getBool",
+  name: "get - large array",
+  group: "get",
   fn: () => {
-    largeArray.getBool(500_000);
+    largeArray.get(500_000);
   },
 });
 
-// setBool benchmarks
+// set benchmarks
 Deno.bench({
-  name: "setBool - small array",
-  group: "setBool",
+  name: "set - small array",
+  group: "set",
   baseline: true,
   fn: () => {
-    smallArray.setBool(16, true);
+    smallArray.set(16, true);
   },
 });
 
 Deno.bench({
-  name: "setBool - medium array",
-  group: "setBool",
+  name: "set - medium array",
+  group: "set",
   fn: () => {
-    mediumArray.setBool(512, true);
+    mediumArray.set(512, true);
   },
 });
 
 Deno.bench({
-  name: "setBool - large array",
-  group: "setBool",
+  name: "set - large array",
+  group: "set",
   fn: () => {
-    largeArray.setBool(500_000, true);
+    largeArray.set(500_000, true);
   },
 });
 
-// toggleBool benchmarks
+// toggle benchmarks
 Deno.bench({
-  name: "toggleBool - small array",
-  group: "toggleBool",
+  name: "toggle - small array",
+  group: "toggle",
   baseline: true,
   fn: () => {
-    smallArray.toggleBool(16);
+    smallArray.toggle(16);
   },
 });
 
 Deno.bench({
-  name: "toggleBool - medium array",
-  group: "toggleBool",
+  name: "toggle - medium array",
+  group: "toggle",
   fn: () => {
-    mediumArray.toggleBool(512);
+    mediumArray.toggle(512);
   },
 });
 
 Deno.bench({
-  name: "toggleBool - large array",
-  group: "toggleBool",
+  name: "toggle - large array",
+  group: "toggle",
   fn: () => {
-    largeArray.toggleBool(500_000);
+    largeArray.toggle(500_000);
   },
 });
 
 // Bulk operations
 Deno.bench({
-  name: "setRange(32 bits) - small array",
-  group: "setRange",
+  name: "set(32 bits) - small array",
+  group: "set",
   baseline: true,
   fn: () => {
-    smallArray.setRange(0, 32, true);
+    smallArray.set(0, 32, true);
   },
 });
 
 Deno.bench({
-  name: "setRange(1024 bits) - medium array",
-  group: "setRange",
+  name: "set(1024 bits) - medium array",
+  group: "set",
   fn: () => {
-    mediumArray.setRange(0, 1024, true);
+    mediumArray.set(0, 1024, true);
   },
 });
 
 Deno.bench({
-  name: "setRange(1M bits) - large array",
-  group: "setRange",
+  name: "set(1M bits) - large array",
+  group: "set",
   fn: () => {
-    largeArray.setRange(0, 1_000_000, true);
+    largeArray.set(0, 1_000_000, true);
   },
 });
 
@@ -151,27 +150,27 @@ Deno.bench({
 const emptySmallArray = new BooleanArray(32);
 
 const sparseSmallArray = new BooleanArray(32);
-sparseSmallArray.setBool(0, true);
-sparseSmallArray.setBool(31, true);
+sparseSmallArray.set(0, true);
+sparseSmallArray.set(31, true);
 
 const denseSmallArray = new BooleanArray(32);
-denseSmallArray.setAll();
+denseSmallArray.fill(true);
 
 const sparseMediumArray = new BooleanArray(1024);
 for (let i = 0; i < 32; i++) {
-  sparseMediumArray.setBool(i * 32, true);
+  sparseMediumArray.set(i * 32, true);
 }
 
 const denseMediumArray = new BooleanArray(1024);
-denseMediumArray.setAll();
+denseMediumArray.fill(true);
 
 const sparseLargeArray = new BooleanArray(1_000_000);
 for (let i = 0; i < 1000; i++) {
-  sparseLargeArray.setBool(i * 1000, true);
+  sparseLargeArray.set(i * 1000, true);
 }
 
 const denseLargeArray = new BooleanArray(1_000_000);
-denseLargeArray.setAll();
+denseLargeArray.fill(true);
 
 // Population count benchmarks
 Deno.bench({
@@ -179,7 +178,7 @@ Deno.bench({
   group: "population",
   baseline: true,
   fn: () => {
-    emptySmallArray.getPopulationCount();
+    emptySmallArray.getTruthyCount();
   },
 });
 
@@ -187,7 +186,7 @@ Deno.bench({
   name: "getPopulationCount - small array (sparse)",
   group: "population",
   fn: () => {
-    sparseSmallArray.getPopulationCount();
+    sparseSmallArray.getTruthyCount();
   },
 });
 
@@ -195,7 +194,7 @@ Deno.bench({
   name: "getPopulationCount - small array (dense)",
   group: "population",
   fn: () => {
-    denseSmallArray.getPopulationCount();
+    denseSmallArray.getTruthyCount();
   },
 });
 
@@ -203,7 +202,7 @@ Deno.bench({
   name: "getPopulationCount - medium array (sparse)",
   group: "population",
   fn: () => {
-    sparseMediumArray.getPopulationCount();
+    sparseMediumArray.getTruthyCount();
   },
 });
 
@@ -211,7 +210,7 @@ Deno.bench({
   name: "getPopulationCount - medium array (dense)",
   group: "population",
   fn: () => {
-    denseMediumArray.getPopulationCount();
+    denseMediumArray.getTruthyCount();
   },
 });
 
@@ -219,7 +218,7 @@ Deno.bench({
   name: "getPopulationCount - large array (sparse)",
   group: "population",
   fn: () => {
-    sparseLargeArray.getPopulationCount();
+    sparseLargeArray.getTruthyCount();
   },
 });
 
@@ -227,7 +226,7 @@ Deno.bench({
   name: "getPopulationCount - large array (dense)",
   group: "population",
   fn: () => {
-    denseLargeArray.getPopulationCount();
+    denseLargeArray.getTruthyCount();
   },
 });
 
@@ -236,8 +235,8 @@ const a = new BooleanArray(1024);
 const b = new BooleanArray(1024);
 
 // Setup some patterns
-a.setRange(0, 512, true);
-b.setRange(256, 512, true);
+a.set(0, 512, true);
+b.set(256, 512, true);
 
 Deno.bench({
   name: "BooleanArray.and()",
@@ -299,7 +298,7 @@ Deno.bench({
 // Iteration
 const iterArray = new BooleanArray(1024);
 for (let i = 0; i < 1024; i += 2) {
-  iterArray.setBool(i, true);
+  iterArray.set(i, true);
 }
 
 Deno.bench({
@@ -336,10 +335,10 @@ Deno.bench({
 // Test edge cases
 const edgeArray = new BooleanArray(33); // Non-aligned size
 Deno.bench({
-  name: "setBool - edge alignment",
+  name: "set - edge alignment",
   group: "edge-cases",
   fn: () => {
-    edgeArray.setBool(32, true);
+    edgeArray.set(32, true);
   },
 });
 
@@ -347,37 +346,37 @@ Deno.bench({
 const emptyIndexArray = new BooleanArray(1024);
 
 const firstSetArray = new BooleanArray(1024);
-firstSetArray.setBool(0, true);
+firstSetArray.set(0, true);
 
 const lastSetArray = new BooleanArray(1024);
-lastSetArray.setBool(1023, true);
+lastSetArray.set(1023, true);
 
 const middleSetArray = new BooleanArray(1024);
-middleSetArray.setBool(512, true);
+middleSetArray.set(512, true);
 
-// getBools benchmarks
+// get benchmarks
 Deno.bench({
-  name: "getBools - small range (32 bits)",
-  group: "getBools",
+  name: "get - small range (32 bits)",
+  group: "get",
   baseline: true,
   fn: () => {
-    mediumArray.getBools(0, 32);
+    mediumArray.get(0, 32);
   },
 });
 
 Deno.bench({
-  name: "getBools - medium range (256 bits)",
-  group: "getBools",
+  name: "get - medium range (256 bits)",
+  group: "get",
   fn: () => {
-    mediumArray.getBools(256, 256);
+    mediumArray.get(256, 256);
   },
 });
 
 Deno.bench({
-  name: "getBools - large range (1024 bits)",
-  group: "getBools",
+  name: "get - large range (1024 bits)",
+  group: "get",
   fn: () => {
-    largeArray.getBools(0, 1024);
+    largeArray.get(0, 1024);
   },
 });
 
@@ -387,7 +386,7 @@ Deno.bench({
   group: "getFirstSetIndex",
   baseline: true,
   fn: () => {
-    emptyIndexArray.getFirstSetIndex();
+    emptyIndexArray.indexOf(true);
   },
 });
 
@@ -395,7 +394,7 @@ Deno.bench({
   name: "getFirstSetIndex - first bit set",
   group: "getFirstSetIndex",
   fn: () => {
-    firstSetArray.getFirstSetIndex();
+    firstSetArray.indexOf(true);
   },
 });
 
@@ -403,7 +402,7 @@ Deno.bench({
   name: "getFirstSetIndex - middle bit set",
   group: "getFirstSetIndex",
   fn: () => {
-    middleSetArray.getFirstSetIndex();
+    middleSetArray.indexOf(true);
   },
 });
 
@@ -411,7 +410,7 @@ Deno.bench({
   name: "getFirstSetIndex - last bit set",
   group: "getFirstSetIndex",
   fn: () => {
-    lastSetArray.getFirstSetIndex();
+    lastSetArray.indexOf(true);
   },
 });
 
@@ -421,7 +420,7 @@ Deno.bench({
   group: "getLastSetIndex",
   baseline: true,
   fn: () => {
-    emptyIndexArray.getLastSetIndex();
+    emptyIndexArray.lastIndexOf(true);
   },
 });
 
@@ -429,7 +428,7 @@ Deno.bench({
   name: "getLastSetIndex - first bit set",
   group: "getLastSetIndex",
   fn: () => {
-    firstSetArray.getLastSetIndex();
+    firstSetArray.lastIndexOf(true);
   },
 });
 
@@ -437,7 +436,7 @@ Deno.bench({
   name: "getLastSetIndex - middle bit set",
   group: "getLastSetIndex",
   fn: () => {
-    middleSetArray.getLastSetIndex();
+    middleSetArray.lastIndexOf(true);
   },
 });
 
@@ -445,7 +444,7 @@ Deno.bench({
   name: "getLastSetIndex - last bit set",
   group: "getLastSetIndex",
   fn: () => {
-    lastSetArray.getLastSetIndex();
+    lastSetArray.lastIndexOf(true);
   },
 });
 
@@ -488,16 +487,16 @@ const clearSmallArray = new BooleanArray(32);
 const clearMediumArray = new BooleanArray(1024);
 const clearLargeArray = new BooleanArray(1_000_000);
 
-clearSmallArray.setAll();
-clearMediumArray.setAll();
-clearLargeArray.setAll();
+clearSmallArray.fill(true);
+clearMediumArray.fill(true);
+clearLargeArray.fill(true);
 
 Deno.bench({
   name: "clear - small array",
   group: "clear",
   baseline: true,
   fn: () => {
-    clearSmallArray.clear();
+    clearSmallArray.fill(false);
   },
 });
 
@@ -505,7 +504,7 @@ Deno.bench({
   name: "clear - medium array",
   group: "clear",
   fn: () => {
-    clearMediumArray.clear();
+    clearMediumArray.fill(false);
   },
 });
 
@@ -513,7 +512,7 @@ Deno.bench({
   name: "clear - large array",
   group: "clear",
   fn: () => {
-    clearLargeArray.clear();
+    clearLargeArray.fill(false);
   },
 });
 
@@ -546,7 +545,7 @@ Deno.bench({
 // Setup arrays for range iteration benchmarks
 const rangeArray = new BooleanArray(1_000_000);
 for (let i = 0; i < 1_000_000; i += 100) {
-  rangeArray.setBool(i, true);
+  rangeArray.set(i, true);
 }
 
 // truthyIndices range benchmarks
@@ -630,9 +629,9 @@ const denseRangeArray = new BooleanArray(100_000);
 
 // Set up different densities (1%, 50%, 99% of bits set)
 for (let i = 0; i < 100_000; i++) {
-  if (i % 100 === 0) sparseRangeArray.setBool(i, true);
-  if (i % 2 === 0) mediumRangeArray.setBool(i, true);
-  if (i % 100 !== 0) denseRangeArray.setBool(i, true);
+  if (i % 100 === 0) sparseRangeArray.set(i, true);
+  if (i % 2 === 0) mediumRangeArray.set(i, true);
+  if (i % 100 !== 0) denseRangeArray.set(i, true);
 }
 
 Deno.bench({
@@ -673,26 +672,26 @@ const emptyB = new BooleanArray(1024);
 const sparseA = new BooleanArray(1024);
 const sparseB = new BooleanArray(1024);
 for (let i = 0; i < 1024; i += 32) {
-  sparseA.setBool(i, true);
-  sparseB.setBool(i, true);
+  sparseA.set(i, true);
+  sparseB.set(i, true);
 }
 
 const denseA = new BooleanArray(1024);
 const denseB = new BooleanArray(1024);
-denseA.setAll();
-denseB.setAll();
+denseA.fill(true);
+denseB.fill(true);
 
 const diffA = new BooleanArray(1024);
 const diffB = new BooleanArray(1024);
-diffA.setRange(0, 512, true);
-diffB.setRange(256, 768, true);
+diffA.set(0, 512, true);
+diffB.set(256, 768, true);
 
 // Large arrays for scaling tests
 const largeA = new BooleanArray(1_000_000);
 const largeB = new BooleanArray(1_000_000);
 for (let i = 0; i < 1_000_000; i += 1000) {
-  largeA.setBool(i, true);
-  largeB.setBool(i, true);
+  largeA.set(i, true);
+  largeB.set(i, true);
 }
 
 // equals benchmarks
@@ -782,8 +781,8 @@ Deno.bench({
 // Edge cases
 const edgeCaseA = new BooleanArray(33); // Non-aligned size
 const edgeCaseB = new BooleanArray(33);
-edgeCaseA.setBool(32, true);
-edgeCaseB.setBool(32, true);
+edgeCaseA.set(32, true);
+edgeCaseB.set(32, true);
 
 Deno.bench({
   name: "equals - non-aligned size",
@@ -804,206 +803,206 @@ Deno.bench({
 // Setup arrays for getFirstSetIndex with startIndex benchmarks
 const startIndexArray = new BooleanArray(1_000_000);
 for (let i = 0; i < 1_000_000; i += 1000) {
-  startIndexArray.setBool(i, true);
+  startIndexArray.set(i, true);
 }
 
 const denseStartIndexArray = new BooleanArray(1_000_000);
-denseStartIndexArray.setAll();
+denseStartIndexArray.fill(true);
 
 const chunkBoundaryArray = new BooleanArray(1024);
-chunkBoundaryArray.setBool(31, true);
-chunkBoundaryArray.setBool(32, true);
-chunkBoundaryArray.setBool(63, true);
-chunkBoundaryArray.setBool(64, true);
+chunkBoundaryArray.set(31, true);
+chunkBoundaryArray.set(32, true);
+chunkBoundaryArray.set(63, true);
+chunkBoundaryArray.set(64, true);
 
 // getFirstSetIndex with startIndex benchmarks
 Deno.bench({
-  name: "getFirstSetIndex(startIndex) - start of array",
+  name: "indexOf(true, startIndex) - start of array",
   group: "getFirstSetIndex-start",
   baseline: true,
   fn: () => {
-    startIndexArray.getFirstSetIndex(0);
+    startIndexArray.indexOf(true, 0);
   },
 });
 
 Deno.bench({
-  name: "getFirstSetIndex(startIndex) - middle of array",
+  name: "indexOf(true, startIndex) - middle of array",
   group: "getFirstSetIndex-start",
   fn: () => {
-    startIndexArray.getFirstSetIndex(500_000);
+    startIndexArray.indexOf(true, 500_000);
   },
 });
 
 Deno.bench({
-  name: "getFirstSetIndex(startIndex) - end of array",
+  name: "indexOf(true, startIndex) - end of array",
   group: "getFirstSetIndex-start",
   fn: () => {
-    startIndexArray.getFirstSetIndex(999_000);
+    startIndexArray.indexOf(true, 999_000);
   },
 });
 
 // Test with different densities
 Deno.bench({
-  name: "getFirstSetIndex(startIndex) - sparse array",
+  name: "indexOf(true, startIndex) - sparse array",
   group: "getFirstSetIndex-density",
   baseline: true,
   fn: () => {
-    startIndexArray.getFirstSetIndex(500_000);
+    startIndexArray.indexOf(true, 500_000);
   },
 });
 
 Deno.bench({
-  name: "getFirstSetIndex(startIndex) - dense array",
+  name: "indexOf(true, startIndex) - dense array",
   group: "getFirstSetIndex-density",
   fn: () => {
-    denseStartIndexArray.getFirstSetIndex(500_000);
+    denseStartIndexArray.indexOf(true, 500_000);
   },
 });
 
 // Test chunk boundary cases
 Deno.bench({
-  name: "getFirstSetIndex(startIndex) - at chunk boundary",
+  name: "indexOf(true, startIndex) - at chunk boundary",
   group: "getFirstSetIndex-boundary",
   baseline: true,
   fn: () => {
-    chunkBoundaryArray.getFirstSetIndex(31);
+    chunkBoundaryArray.indexOf(true, 31);
   },
 });
 
 Deno.bench({
-  name: "getFirstSetIndex(startIndex) - across chunk boundary",
+  name: "indexOf(true, startIndex) - across chunk boundary",
   group: "getFirstSetIndex-boundary",
   fn: () => {
-    chunkBoundaryArray.getFirstSetIndex(32);
+    chunkBoundaryArray.indexOf(true, 32);
   },
 });
 
 // Test with different array sizes
 Deno.bench({
-  name: "getFirstSetIndex(startIndex) - small array (32 bits)",
+  name: "indexOf(true, startIndex) - small array (32 bits)",
   group: "getFirstSetIndex-size",
   baseline: true,
   fn: () => {
-    sparseSmallArray.getFirstSetIndex(16);
+    sparseSmallArray.indexOf(true, 16);
   },
 });
 
 Deno.bench({
-  name: "getFirstSetIndex(startIndex) - medium array (1024 bits)",
+  name: "indexOf(true, startIndex) - medium array (1024 bits)",
   group: "getFirstSetIndex-size",
   fn: () => {
-    sparseMediumArray.getFirstSetIndex(512);
+    sparseMediumArray.indexOf(true, 512);
   },
 });
 
 Deno.bench({
-  name: "getFirstSetIndex(startIndex) - large array (1M bits)",
+  name: "indexOf(true, startIndex) - large array (1M bits)",
   group: "getFirstSetIndex-size",
   fn: () => {
-    startIndexArray.getFirstSetIndex(500_000);
+    startIndexArray.indexOf(true, 500_000);
   },
 });
 
 // Setup arrays for getLastSetIndex with startIndex benchmarks
 const lastIndexArray = new BooleanArray(1_000_000);
 for (let i = 0; i < 1_000_000; i += 1000) {
-  lastIndexArray.setBool(i, true);
+  lastIndexArray.set(i, true);
 }
 
 const denseLastIndexArray = new BooleanArray(1_000_000);
-denseLastIndexArray.setAll();
+denseLastIndexArray.fill(true);
 
 const lastIndexBoundaryArray = new BooleanArray(1024);
-lastIndexBoundaryArray.setBool(31, true);
-lastIndexBoundaryArray.setBool(32, true);
-lastIndexBoundaryArray.setBool(63, true);
-lastIndexBoundaryArray.setBool(64, true);
+lastIndexBoundaryArray.set(31, true);
+lastIndexBoundaryArray.set(32, true);
+lastIndexBoundaryArray.set(63, true);
+lastIndexBoundaryArray.set(64, true);
 
 // getLastSetIndex with startIndex benchmarks
 Deno.bench({
-  name: "getLastSetIndex(startIndex) - end of array",
+  name: "lastIndexOf(true, startIndex) - end of array",
   group: "getLastSetIndex-start",
   baseline: true,
   fn: () => {
-    lastIndexArray.getLastSetIndex(1_000_000);
+    lastIndexArray.lastIndexOf(true, 1_000_000);
   },
 });
 
 Deno.bench({
-  name: "getLastSetIndex(startIndex) - middle of array",
+  name: "lastIndexOf(true, startIndex) - middle of array",
   group: "getLastSetIndex-start",
   fn: () => {
-    lastIndexArray.getLastSetIndex(500_000);
+    lastIndexArray.lastIndexOf(true, 500_000);
   },
 });
 
 Deno.bench({
-  name: "getLastSetIndex(startIndex) - start of array",
+  name: "lastIndexOf(true, startIndex) - start of array",
   group: "getLastSetIndex-start",
   fn: () => {
-    lastIndexArray.getLastSetIndex(1000);
+    lastIndexArray.lastIndexOf(true, 1000);
   },
 });
 
 // Test with different densities
 Deno.bench({
-  name: "getLastSetIndex(startIndex) - sparse array",
+  name: "lastIndexOf(true, startIndex) - sparse array",
   group: "getLastSetIndex-density",
   baseline: true,
   fn: () => {
-    lastIndexArray.getLastSetIndex(500_000);
+    lastIndexArray.lastIndexOf(true, 500_000);
   },
 });
 
 Deno.bench({
-  name: "getLastSetIndex(startIndex) - dense array",
+  name: "lastIndexOf(true, startIndex) - dense array",
   group: "getLastSetIndex-density",
   fn: () => {
-    denseLastIndexArray.getLastSetIndex(500_000);
+    denseLastIndexArray.lastIndexOf(true, 500_000);
   },
 });
 
 // Test chunk boundary cases
 Deno.bench({
-  name: "getLastSetIndex(startIndex) - at chunk boundary",
+  name: "lastIndexOf(true, startIndex) - at chunk boundary",
   group: "getLastSetIndex-boundary",
   baseline: true,
   fn: () => {
-    lastIndexBoundaryArray.getLastSetIndex(32);
+    lastIndexBoundaryArray.lastIndexOf(true, 32);
   },
 });
 
 Deno.bench({
-  name: "getLastSetIndex(startIndex) - across chunk boundary",
+  name: "lastIndexOf(true, startIndex) - across chunk boundary",
   group: "getLastSetIndex-boundary",
   fn: () => {
-    lastIndexBoundaryArray.getLastSetIndex(33);
+    lastIndexBoundaryArray.lastIndexOf(true, 33);
   },
 });
 
 // Test with different array sizes
 Deno.bench({
-  name: "getLastSetIndex(startIndex) - small array (32 bits)",
+  name: "lastIndexOf(true, startIndex) - small array (32 bits)",
   group: "getLastSetIndex-size",
   baseline: true,
   fn: () => {
-    sparseSmallArray.getLastSetIndex(16);
+    sparseSmallArray.lastIndexOf(true, 16);
   },
 });
 
 Deno.bench({
-  name: "getLastSetIndex(startIndex) - medium array (1024 bits)",
+  name: "lastIndexOf(true, startIndex) - medium array (1024 bits)",
   group: "getLastSetIndex-size",
   fn: () => {
-    sparseMediumArray.getLastSetIndex(512);
+    sparseMediumArray.lastIndexOf(true, 512);
   },
 });
 
 Deno.bench({
-  name: "getLastSetIndex(startIndex) - large array (1M bits)",
+  name: "lastIndexOf(true, startIndex) - large array (1M bits)",
   group: "getLastSetIndex-size",
   fn: () => {
-    lastIndexArray.getLastSetIndex(500_000);
+    lastIndexArray.lastIndexOf(true, 500_000);
   },
 });
 
@@ -1019,7 +1018,7 @@ Deno.bench({
   group: "fromArray",
   baseline: true,
   fn: () => {
-    BooleanArray.fromArray(smallIndices, 32);
+    BooleanArray.fromArray(32, smallIndices);
   },
 });
 
@@ -1027,7 +1026,7 @@ Deno.bench({
   name: "fromArray - medium sparse array (32 bits)",
   group: "fromArray",
   fn: () => {
-    BooleanArray.fromArray(mediumIndices, 1024);
+    BooleanArray.fromArray(1024, mediumIndices);
   },
 });
 
@@ -1035,7 +1034,7 @@ Deno.bench({
   name: "fromArray - large sparse array (1000 bits)",
   group: "fromArray",
   fn: () => {
-    BooleanArray.fromArray(largeIndices, 1_000_000);
+    BooleanArray.fromArray(1_000_000, largeIndices);
   },
 });
 
@@ -1043,7 +1042,7 @@ Deno.bench({
   name: "fromArray - dense consecutive indices (1000 bits)",
   group: "fromArray",
   fn: () => {
-    BooleanArray.fromArray(denseIndices, 1_000_000);
+    BooleanArray.fromArray(1_000_000, denseIndices);
   },
 });
 
@@ -1056,7 +1055,7 @@ Deno.bench({
   group: "fromArray-patterns",
   baseline: true,
   fn: () => {
-    BooleanArray.fromArray(randomIndices, 1_000_000);
+    BooleanArray.fromArray(1_000_000, randomIndices);
   },
 });
 
@@ -1064,7 +1063,7 @@ Deno.bench({
   name: "fromArray - clustered indices (1000 bits)",
   group: "fromArray-patterns",
   fn: () => {
-    BooleanArray.fromArray(clusterIndices, 1_000_000);
+    BooleanArray.fromArray(1_000_000, clusterIndices);
   },
 });
 
@@ -1079,7 +1078,7 @@ Deno.bench({
   group: "fromArray-scaling",
   baseline: true,
   fn: () => {
-    BooleanArray.fromArray(size1k, 1000);
+    BooleanArray.fromArray(1000, size1k);
   },
 });
 
@@ -1087,7 +1086,7 @@ Deno.bench({
   name: "fromArray - 10K size (10% density)",
   group: "fromArray-scaling",
   fn: () => {
-    BooleanArray.fromArray(size10k, 10_000);
+    BooleanArray.fromArray(10_000, size10k);
   },
 });
 
@@ -1095,7 +1094,7 @@ Deno.bench({
   name: "fromArray - 100K size (10% density)",
   group: "fromArray-scaling",
   fn: () => {
-    BooleanArray.fromArray(size100k, 100_000);
+    BooleanArray.fromArray(100_000, size100k);
   },
 });
 
@@ -1103,7 +1102,7 @@ Deno.bench({
   name: "fromArray - 1M size (10% density)",
   group: "fromArray-scaling",
   fn: () => {
-    BooleanArray.fromArray(size1m, 1_000_000);
+    BooleanArray.fromArray(1_000_000, size1m);
   },
 });
 
@@ -1116,7 +1115,7 @@ Deno.bench({
   group: "fromArray-edge",
   baseline: true,
   fn: () => {
-    BooleanArray.fromArray(edgeCaseIndices, 100);
+    BooleanArray.fromArray(100, edgeCaseIndices);
   },
 });
 
@@ -1124,7 +1123,7 @@ Deno.bench({
   name: "fromArray - maximum safe size",
   group: "fromArray-edge",
   fn: () => {
-    BooleanArray.fromArray(maxSizeIndices, BooleanArray.MAX_SAFE_SIZE);
+    BooleanArray.fromArray(BooleanArray.MAX_SAFE_SIZE, maxSizeIndices);
   },
 });
 
@@ -1136,17 +1135,17 @@ Deno.bench({
   group: "fromArray-comparison",
   baseline: true,
   fn: () => {
-    BooleanArray.fromArray(comparisonIndices, 100_000);
+    BooleanArray.fromArray(100_000, comparisonIndices);
   },
 });
 
 Deno.bench({
-  name: "manual setBool - equivalent operation",
+  name: "manual set - equivalent operation",
   group: "fromArray-comparison",
   fn: () => {
     const array = new BooleanArray(100_000);
     for (const index of comparisonIndices) {
-      array.setBool(index, true);
+      array.set(index, true);
     }
   },
 });
@@ -1160,7 +1159,7 @@ Deno.bench({
   group: "fromArray-sorting",
   baseline: true,
   fn: () => {
-    BooleanArray.fromArray(sortedIndices, 10_000);
+    BooleanArray.fromArray(10_000, sortedIndices);
   },
 });
 
@@ -1168,7 +1167,7 @@ Deno.bench({
   name: "fromArray - unsorted indices",
   group: "fromArray-sorting",
   fn: () => {
-    BooleanArray.fromArray(unsortedIndices, 10_000);
+    BooleanArray.fromArray(10_000, unsortedIndices);
   },
 });
 
@@ -1335,12 +1334,12 @@ Deno.bench({
 });
 
 Deno.bench({
-  name: "manual setBool - equivalent operation",
+  name: "manual set - equivalent operation",
   group: "fromObjects-comparison",
   fn: () => {
     const array = new BooleanArray(100_000);
     for (const obj of comparisonObjects) {
-      array.setBool(obj.index, true);
+      array.set(obj.index, true);
     }
   },
 });
@@ -1437,8 +1436,8 @@ const instanceA = new BooleanArray(1024);
 const instanceB = new BooleanArray(1024);
 
 // Setup some patterns for instance methods
-instanceA.setRange(0, 512, true);
-instanceB.setRange(256, 512, true);
+instanceA.set(0, 512, true);
+instanceB.set(256, 512, true);
 
 Deno.bench({
   name: "instance.and() - in-place",
@@ -1516,50 +1515,50 @@ Deno.bench({
 // forEachBool benchmarks
 const forEachTestArray = new BooleanArray(10_000);
 for (let i = 0; i < 10_000; i += 10) {
-  forEachTestArray.setBool(i, true);
+  forEachTestArray.set(i, true);
 }
 
 const forEachEmptyArray = new BooleanArray(10_000);
 const forEachDenseArray = new BooleanArray(10_000);
-forEachDenseArray.setAll();
+forEachDenseArray.fill(true);
 
 Deno.bench({
-  name: "forEachBool - sparse array (10% set)",
-  group: "forEachBool",
+  name: "forEach - sparse array (10% set)",
+  group: "forEach",
   baseline: true,
   fn: () => {
-    forEachTestArray.forEachBool((_index, _value) => {
+    forEachTestArray.forEach((_value, _index) => {
       // Just iterate
     });
   },
 });
 
 Deno.bench({
-  name: "forEachBool - empty array",
-  group: "forEachBool",
+  name: "forEach - empty array",
+  group: "forEach",
   fn: () => {
-    forEachEmptyArray.forEachBool((_index, _value) => {
+    forEachEmptyArray.forEach((_value, _index) => {
       // Just iterate
     });
   },
 });
 
 Deno.bench({
-  name: "forEachBool - dense array (100% set)",
-  group: "forEachBool",
+  name: "forEach - dense array (100% set)",
+  group: "forEach",
   fn: () => {
-    forEachDenseArray.forEachBool((_index, _value) => {
+    forEachDenseArray.forEach((_value, _index) => {
       // Just iterate
     });
   },
 });
 
 Deno.bench({
-  name: "forEachBool - partial range (1000 elements)",
-  group: "forEachBool",
+  name: "forEach - partial range (1000 elements)",
+  group: "forEach",
   fn: () => {
-    forEachTestArray.forEachBool(
-      (_index, _value) => {
+    forEachTestArray.forEach(
+      (_value, _index) => {
         // Just iterate
       },
       1000,
@@ -1569,90 +1568,90 @@ Deno.bench({
 });
 
 // setAll benchmarks
-const setAllSmallArray = new BooleanArray(32);
-const setAllMediumArray = new BooleanArray(1024);
-const setAllLargeArray = new BooleanArray(1_000_000);
+const fillSmallArray = new BooleanArray(32);
+const fillMediumArray = new BooleanArray(1024);
+const fillLargeArray = new BooleanArray(1_000_000);
 
 Deno.bench({
-  name: "setAll - small array",
-  group: "setAll",
+  name: "fill - small array",
+  group: "fill",
   baseline: true,
   fn: () => {
-    setAllSmallArray.setAll();
+    fillSmallArray.fill(true);
   },
 });
 
 Deno.bench({
-  name: "setAll - medium array",
-  group: "setAll",
+  name: "fill - medium array",
+  group: "fill",
   fn: () => {
-    setAllMediumArray.setAll();
+    fillMediumArray.fill(true);
   },
 });
 
 Deno.bench({
-  name: "setAll - large array",
-  group: "setAll",
+  name: "fill - large array",
+  group: "fill",
   fn: () => {
-    setAllLargeArray.setAll();
+    fillLargeArray.fill(true);
   },
 });
 
 // In-place vs Copy operation benchmarks
 const copyTestA = new BooleanArray(1024);
 const copyTestB = new BooleanArray(1024);
-copyTestA.setRange(0, 512, true);
-copyTestB.setRange(256, 768, true);
+copyTestA.set(0, 512, true);
+copyTestB.set(256, 768, true);
 
 Deno.bench({
-  name: "and() - copy operation (inPlace=false)",
+  name: "BooleanArray.and() - copy operation",
   group: "inPlace-comparison",
   baseline: true,
   fn: () => {
-    and(copyTestA, copyTestB, false);
+    BooleanArray.and(copyTestA, copyTestB);
   },
 });
 
 Deno.bench({
-  name: "and() - in-place operation (inPlace=true)",
+  name: "BooleanArray.and() - in-place operation",
   group: "inPlace-comparison",
   fn: () => {
     const a = copyTestA.clone();
-    and(a, copyTestB, true);
+    a.and(copyTestB);
   },
 });
 
 Deno.bench({
-  name: "or() - copy operation (inPlace=false)",
+  name: "BooleanArray.or() - copy operation",
   group: "inPlace-comparison",
   fn: () => {
-    or(copyTestA, copyTestB, false);
+    BooleanArray.or(copyTestA, copyTestB);
   },
 });
 
 Deno.bench({
-  name: "or() - in-place operation (inPlace=true)",
-  group: "inPlace-comparison",
-  fn: () => {
-    const a = copyTestA.clone();
-    or(a, copyTestB, true);
-  },
-});
-
-Deno.bench({
-  name: "not() - copy operation (inPlace=false)",
-  group: "inPlace-comparison",
-  fn: () => {
-    not(copyTestA, false);
-  },
-});
-
-Deno.bench({
-  name: "not() - in-place operation (inPlace=true)",
+  name: "BooleanArray.or() - in-place operation",
   group: "inPlace-comparison",
   fn: () => {
     const a = copyTestA.clone();
-    not(a, true);
+    a.or(copyTestB);
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray.not() - copy operation",
+  group: "inPlace-comparison",
+  fn: () => {
+    BooleanArray.not(copyTestA);
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray.not() - in-place operation",
+  group: "inPlace-comparison",
+  fn: () => {
+    const a = copyTestA.clone();
+    a.not();
   },
 });
 
@@ -1695,24 +1694,24 @@ Deno.bench({
 });
 
 Deno.bench({
-  name: "BooleanArray.validateValue() - valid values",
+  name: "BooleanArray.assertIsSafeValue() - valid values",
   group: "utility-methods",
   fn: () => {
-    BooleanArray.validateValue(0);
-    BooleanArray.validateValue(100);
-    BooleanArray.validateValue(1024);
-    BooleanArray.validateValue(BooleanArray.MAX_SAFE_SIZE - 1);
+    BooleanArray.assertIsSafeValue(0);
+    BooleanArray.assertIsSafeValue(100);
+    BooleanArray.assertIsSafeValue(1024);
+    BooleanArray.assertIsSafeValue(BooleanArray.MAX_SAFE_SIZE - 1);
   },
 });
 
 Deno.bench({
-  name: "BooleanArray.isValidValue() - valid values",
+  name: "BooleanArray.isSafeValue() - valid values",
   group: "utility-methods",
   fn: () => {
-    BooleanArray.isValidValue(0);
-    BooleanArray.isValidValue(100);
-    BooleanArray.isValidValue(1024);
-    BooleanArray.isValidValue(BooleanArray.MAX_SAFE_SIZE - 1);
+    BooleanArray.isSafeValue(0);
+    BooleanArray.isSafeValue(100);
+    BooleanArray.isSafeValue(1024);
+    BooleanArray.isSafeValue(BooleanArray.MAX_SAFE_SIZE - 1);
   },
 });
 
@@ -1729,18 +1728,18 @@ Deno.bench({
 });
 
 Deno.bench({
-  name: "MAX_SAFE_SIZE array - setBool",
+  name: "MAX_SAFE_SIZE array - set",
   group: "edge-cases-size",
   fn: () => {
-    maxSizeArray.setBool(BooleanArray.MAX_SAFE_SIZE - 1, true);
+    maxSizeArray.set(BooleanArray.MAX_SAFE_SIZE - 1, true);
   },
 });
 
 Deno.bench({
-  name: "MAX_SAFE_SIZE array - getBool",
+  name: "MAX_SAFE_SIZE array - get",
   group: "edge-cases-size",
   fn: () => {
-    maxSizeArray.getBool(BooleanArray.MAX_SAFE_SIZE - 1);
+    maxSizeArray.get(BooleanArray.MAX_SAFE_SIZE - 1);
   },
 });
 
@@ -1749,5 +1748,564 @@ Deno.bench({
   group: "edge-cases-size",
   fn: () => {
     maxSizeArray.isEmpty();
+  },
+});
+
+// Iterator benchmarks
+const iteratorTestArray = new BooleanArray(10_000);
+for (let i = 0; i < 10_000; i += 10) {
+  iteratorTestArray.set(i, true);
+}
+
+const iteratorEmptyArray = new BooleanArray(10_000);
+const iteratorDenseArray = new BooleanArray(10_000);
+iteratorDenseArray.fill(true);
+
+// Symbol.iterator benchmarks
+Deno.bench({
+  name: "Symbol.iterator - sparse array (10% set)",
+  group: "Symbol.iterator",
+  baseline: true,
+  fn: () => {
+    for (const _value of iteratorTestArray) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "Symbol.iterator - empty array",
+  group: "Symbol.iterator",
+  fn: () => {
+    for (const _value of iteratorEmptyArray) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "Symbol.iterator - dense array (100% set)",
+  group: "Symbol.iterator",
+  fn: () => {
+    for (const _value of iteratorDenseArray) {
+      // Just iterate
+    }
+  },
+});
+
+// entries() iterator benchmarks
+Deno.bench({
+  name: "entries() - sparse array (10% set)",
+  group: "entries",
+  baseline: true,
+  fn: () => {
+    for (const [_index, _value] of iteratorTestArray.entries()) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "entries() - empty array",
+  group: "entries",
+  fn: () => {
+    for (const [_index, _value] of iteratorEmptyArray.entries()) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "entries() - dense array (100% set)",
+  group: "entries",
+  fn: () => {
+    for (const [_index, _value] of iteratorDenseArray.entries()) {
+      // Just iterate
+    }
+  },
+});
+
+// keys() iterator benchmarks
+Deno.bench({
+  name: "keys() - sparse array (10% set)",
+  group: "keys",
+  baseline: true,
+  fn: () => {
+    for (const _index of iteratorTestArray.keys()) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "keys() - empty array",
+  group: "keys",
+  fn: () => {
+    for (const _index of iteratorEmptyArray.keys()) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "keys() - dense array (100% set)",
+  group: "keys",
+  fn: () => {
+    for (const _index of iteratorDenseArray.keys()) {
+      // Just iterate
+    }
+  },
+});
+
+// values() iterator benchmarks
+Deno.bench({
+  name: "values() - sparse array (10% set)",
+  group: "values",
+  baseline: true,
+  fn: () => {
+    for (const _value of iteratorTestArray.values()) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "values() - empty array",
+  group: "values",
+  fn: () => {
+    for (const _value of iteratorEmptyArray.values()) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "values() - dense array (100% set)",
+  group: "values",
+  fn: () => {
+    for (const _value of iteratorDenseArray.values()) {
+      // Just iterate
+    }
+  },
+});
+
+// Compare iterator performance vs forEach
+Deno.bench({
+  name: "forEach vs Symbol.iterator - sparse (forEach)",
+  group: "iterator-comparison",
+  baseline: true,
+  fn: () => {
+    iteratorTestArray.forEach((_value, _index) => {
+      // Just iterate
+    });
+  },
+});
+
+Deno.bench({
+  name: "forEach vs Symbol.iterator - sparse (Symbol.iterator)",
+  group: "iterator-comparison",
+  fn: () => {
+    for (const _value of iteratorTestArray) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "forEach vs entries - sparse (forEach)",
+  group: "iterator-comparison",
+  fn: () => {
+    iteratorTestArray.forEach((_value, _index) => {
+      // Just iterate with both value and index
+    });
+  },
+});
+
+Deno.bench({
+  name: "forEach vs entries - sparse (entries)",
+  group: "iterator-comparison",
+  fn: () => {
+    for (const [_index, _value] of iteratorTestArray.entries()) {
+      // Just iterate with both value and index
+    }
+  },
+});
+
+// indexOf/lastIndexOf with false values benchmarks
+const falseIndexArray = new BooleanArray(1_000_000);
+falseIndexArray.fill(true);
+falseIndexArray.set(500_000, false); // Single false bit in the middle
+
+const sparseFalseArray = new BooleanArray(1_000_000);
+sparseFalseArray.fill(true);
+for (let i = 0; i < 1000; i++) {
+  sparseFalseArray.set(i * 1000, false);
+}
+
+// indexOf with false values
+Deno.bench({
+  name: "indexOf(false) - single false bit in middle",
+  group: "indexOf-false",
+  baseline: true,
+  fn: () => {
+    falseIndexArray.indexOf(false);
+  },
+});
+
+Deno.bench({
+  name: "indexOf(false) - sparse false bits",
+  group: "indexOf-false",
+  fn: () => {
+    sparseFalseArray.indexOf(false);
+  },
+});
+
+Deno.bench({
+  name: "indexOf(false) - no false bits (all true)",
+  group: "indexOf-false",
+  fn: () => {
+    denseLargeArray.indexOf(false);
+  },
+});
+
+Deno.bench({
+  name: "indexOf(false) - all false bits (empty array)",
+  group: "indexOf-false",
+  fn: () => {
+    new BooleanArray(1_000_000).indexOf(false);
+  },
+});
+
+// lastIndexOf with false values
+Deno.bench({
+  name: "lastIndexOf(false) - single false bit in middle",
+  group: "lastIndexOf-false",
+  baseline: true,
+  fn: () => {
+    falseIndexArray.lastIndexOf(false);
+  },
+});
+
+Deno.bench({
+  name: "lastIndexOf(false) - sparse false bits",
+  group: "lastIndexOf-false",
+  fn: () => {
+    sparseFalseArray.lastIndexOf(false);
+  },
+});
+
+Deno.bench({
+  name: "lastIndexOf(false) - no false bits (all true)",
+  group: "lastIndexOf-false",
+  fn: () => {
+    denseLargeArray.lastIndexOf(false);
+  },
+});
+
+Deno.bench({
+  name: "lastIndexOf(false) - all false bits (empty array)",
+  group: "lastIndexOf-false",
+  fn: () => {
+    new BooleanArray(1_000_000).lastIndexOf(false);
+  },
+});
+
+// Property access benchmarks
+const propertyTestArray = new BooleanArray(1_000_000);
+
+Deno.bench({
+  name: "size property access",
+  group: "property-access",
+  baseline: true,
+  fn: () => {
+    propertyTestArray.size;
+  },
+});
+
+Deno.bench({
+  name: "length property access",
+  group: "property-access",
+  fn: () => {
+    propertyTestArray.length;
+  },
+});
+
+Deno.bench({
+  name: "buffer property access",
+  group: "property-access",
+  fn: () => {
+    propertyTestArray.buffer;
+  },
+});
+
+// Chunk alignment edge cases
+const alignmentTestArray = new BooleanArray(100);
+
+// Test operations on chunk boundaries (31, 32, 63, 64, etc.)
+Deno.bench({
+  name: "set - chunk boundary transitions",
+  group: "chunk-alignment",
+  baseline: true,
+  fn: () => {
+    alignmentTestArray.set(31, true);
+    alignmentTestArray.set(32, true);
+    alignmentTestArray.set(63, true);
+    alignmentTestArray.set(64, true);
+  },
+});
+
+Deno.bench({
+  name: "get - chunk boundary transitions",
+  group: "chunk-alignment",
+  fn: () => {
+    alignmentTestArray.get(31);
+    alignmentTestArray.get(32);
+    alignmentTestArray.get(63);
+    alignmentTestArray.get(64);
+  },
+});
+
+Deno.bench({
+  name: "toggle - chunk boundary transitions",
+  group: "chunk-alignment",
+  fn: () => {
+    alignmentTestArray.toggle(31);
+    alignmentTestArray.toggle(32);
+    alignmentTestArray.toggle(63);
+    alignmentTestArray.toggle(64);
+  },
+});
+
+// Cross-chunk range operations
+Deno.bench({
+  name: "set range - cross chunk boundaries",
+  group: "chunk-alignment",
+  fn: () => {
+    alignmentTestArray.set(30, 5, true); // Crosses 32-bit boundary
+    alignmentTestArray.set(62, 5, false); // Crosses 64-bit boundary
+  },
+});
+
+Deno.bench({
+  name: "get range - cross chunk boundaries",
+  group: "chunk-alignment",
+  fn: () => {
+    alignmentTestArray.get(30, 5); // Crosses 32-bit boundary
+    alignmentTestArray.get(62, 5); // Crosses 64-bit boundary
+  },
+});
+
+// Memory efficiency comparison with native arrays
+const nativeBoolArray = new Array(10_000).fill(false);
+for (let i = 0; i < 10_000; i += 10) {
+  nativeBoolArray[i] = true;
+}
+
+const boolArrayEquivalent = new BooleanArray(10_000);
+for (let i = 0; i < 10_000; i += 10) {
+  boolArrayEquivalent.set(i, true);
+}
+
+Deno.bench({
+  name: "native Array<boolean> - set operation",
+  group: "memory-efficiency",
+  baseline: true,
+  fn: () => {
+    nativeBoolArray[5000] = true;
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray - set operation",
+  group: "memory-efficiency",
+  fn: () => {
+    boolArrayEquivalent.set(5000, true);
+  },
+});
+
+Deno.bench({
+  name: "native Array<boolean> - get operation",
+  group: "memory-efficiency",
+  fn: () => {
+    nativeBoolArray[5000];
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray - get operation",
+  group: "memory-efficiency",
+  fn: () => {
+    boolArrayEquivalent.get(5000);
+  },
+});
+
+Deno.bench({
+  name: "native Array<boolean> - iteration",
+  group: "memory-efficiency",
+  fn: () => {
+    for (let i = 0; i < nativeBoolArray.length; i++) {
+      nativeBoolArray[i];
+    }
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray - iteration via forEach",
+  group: "memory-efficiency",
+  fn: () => {
+    boolArrayEquivalent.forEach((_value, _index) => {
+      // Just iterate
+    });
+  },
+});
+
+Deno.bench({
+  name: "native Array<boolean> - find truthy indices",
+  group: "memory-efficiency",
+  fn: () => {
+    const indices = [];
+    for (let i = 0; i < nativeBoolArray.length; i++) {
+      if (nativeBoolArray[i]) {
+        indices.push(i);
+      }
+    }
+  },
+});
+
+Deno.bench({
+  name: "BooleanArray - find truthy indices",
+  group: "memory-efficiency",
+  fn: () => {
+    const indices = [];
+    for (const index of boolArrayEquivalent.truthyIndices()) {
+      indices.push(index);
+    }
+  },
+});
+
+// Advanced truthyIndices patterns
+const advancedTruthyArray = new BooleanArray(1_000_000);
+// Create a complex pattern: clusters of bits with gaps
+for (let cluster = 0; cluster < 100; cluster++) {
+  const clusterStart = cluster * 10000;
+  for (let i = 0; i < 50; i++) {
+    advancedTruthyArray.set(clusterStart + i, true);
+  }
+}
+
+Deno.bench({
+  name: "truthyIndices - clustered pattern (full iteration)",
+  group: "truthyIndices-advanced",
+  baseline: true,
+  fn: () => {
+    for (const _index of advancedTruthyArray.truthyIndices()) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - clustered pattern (single cluster)",
+  group: "truthyIndices-advanced",
+  fn: () => {
+    for (const _index of advancedTruthyArray.truthyIndices(0, 10000)) {
+      // Just iterate first cluster
+    }
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - clustered pattern (middle cluster)",
+  group: "truthyIndices-advanced",
+  fn: () => {
+    for (const _index of advancedTruthyArray.truthyIndices(500000, 510000)) {
+      // Just iterate middle cluster
+    }
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - empty range",
+  group: "truthyIndices-advanced",
+  fn: () => {
+    for (const _index of advancedTruthyArray.truthyIndices(1000, 9000)) {
+      // Iterate over gap (no set bits)
+    }
+  },
+});
+
+// Early termination patterns
+Deno.bench({
+  name: "truthyIndices - early termination (first 10)",
+  group: "truthyIndices-advanced",
+  fn: () => {
+    let count = 0;
+    for (const _index of advancedTruthyArray.truthyIndices()) {
+      if (++count >= 10) break;
+    }
+  },
+});
+
+// Complex equals patterns
+const equalsArrayA = new BooleanArray(10_000);
+const equalsArrayB = new BooleanArray(10_000);
+const equalsArrayC = new BooleanArray(10_000);
+
+// Set up different patterns for comparison
+equalsArrayA.fill(true);
+equalsArrayB.fill(true);
+equalsArrayC.fill(true);
+equalsArrayC.set(9999, false); // Only last bit differs
+
+Deno.bench({
+  name: "equals - identical dense arrays",
+  group: "equals-patterns",
+  baseline: true,
+  fn: () => {
+    BooleanArray.equals(equalsArrayA, equalsArrayB);
+  },
+});
+
+Deno.bench({
+  name: "equals - arrays differing at end",
+  group: "equals-patterns",
+  fn: () => {
+    BooleanArray.equals(equalsArrayA, equalsArrayC);
+  },
+});
+
+const equalsArrayEarlyDiff = new BooleanArray(10_000);
+equalsArrayEarlyDiff.fill(true);
+equalsArrayEarlyDiff.set(0, false); // First bit differs
+
+Deno.bench({
+  name: "equals - arrays differing at start",
+  group: "equals-patterns",
+  fn: () => {
+    BooleanArray.equals(equalsArrayA, equalsArrayEarlyDiff);
+  },
+});
+
+const equalsArrayMiddleDiff = new BooleanArray(10_000);
+equalsArrayMiddleDiff.fill(true);
+equalsArrayMiddleDiff.set(5000, false); // Middle bit differs
+
+Deno.bench({
+  name: "equals - arrays differing in middle",
+  group: "equals-patterns",
+  fn: () => {
+    BooleanArray.equals(equalsArrayA, equalsArrayMiddleDiff);
+  },
+});
+
+// Size mismatch (should be fast)
+const differentSizeArray = new BooleanArray(5_000);
+differentSizeArray.fill(true);
+
+Deno.bench({
+  name: "equals - different sizes",
+  group: "equals-patterns",
+  fn: () => {
+    BooleanArray.equals(equalsArrayA, differentSizeArray);
   },
 });

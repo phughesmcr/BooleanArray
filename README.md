@@ -53,22 +53,25 @@ import { BooleanArray } from "@phughesmcr/booleanarray";
 const bits = new BooleanArray(1000);
 
 // Set individual bits
-bits.setBool(42, true);
-bits.setBool(142, true);
+bits.set(42, true);
+bits.set(142, true);
 
 // Get bit values
-console.log(bits.getBool(42)); // true
-console.log(bits.getBool(43)); // false
+console.log(bits.get(42)); // true
+console.log(bits.get(43)); // false
 
 // Set ranges
-bits.setRange(100, 50, true); // Set 50 bits starting at index 100
+bits.set(100, 50, true); // Set 50 bits starting at index 100
 
 // Perform bitwise operations
 const other = new BooleanArray(1000);
+other.set(1, true).and(bits).xor(bits); // chaining!
 const result = BooleanArray.and(bits, other);
+// or in-place
+other.and(result);
 
 // Get population count
-console.log(bits.getPopulationCount()); // Number of set bits
+console.log(bits.getTruthyCount()); // Number of set bits
 
 // Iterate over set bits
 for (const index of bits.truthyIndices()) {
