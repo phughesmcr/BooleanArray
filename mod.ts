@@ -5,9 +5,4 @@
  * @module      BooleanArray
  */
 
-import { BooleanArray } from "./src/BooleanArray.ts";
-
-/**
- * BooleanArray is a fast boolean array backed by a Uint32Array.
- */
-export { BooleanArray };
+export { BooleanArray } from "./src/BooleanArray.ts";
