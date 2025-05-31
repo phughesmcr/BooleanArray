@@ -1044,64 +1044,34 @@ export class BooleanArray {
     BooleanArray.assertIsSafeValue(endIndex, this.size + 1);
     if (startIndex >= endIndex) return;
 
-    const actualEndIndex = Math.min(endIndex, this.size); // Ensure we don't iterate past the logical size
+    const actualEndIndex = Math.min(endIndex, this.size);
 
-    let currentBitIndex = startIndex;
+    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
+    const endChunk = (actualEndIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
 
-    // Navigate to the first relevant chunk and bit offset
-    let currentChunkLoopIndex = currentBitIndex >>> BooleanArray.CHUNK_SHIFT;
-    let bitOffsetInChunk = currentBitIndex & BooleanArray.CHUNK_MASK;
+    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
+      let chunk = this.buffer[chunkIndex]!;
+      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
 
-    while (currentBitIndex < actualEndIndex) {
-      // If we've moved to a new chunk or starting, load the chunk
-      if (bitOffsetInChunk === 0 || currentBitIndex === startIndex) {
-        // Ensure we don't go past the array buffer's length
-        if (currentChunkLoopIndex >= this.chunkCount) break;
+      // Mask off bits before startIndex in the first chunk
+      if (chunkIndex === (startIndex >>> BooleanArray.CHUNK_SHIFT)) {
+        const startBitOffset = startIndex & BooleanArray.CHUNK_MASK;
+        chunk &= BooleanArray.ALL_BITS_TRUE << startBitOffset;
       }
 
-      let chunk = this.buffer[currentChunkLoopIndex]!;
-
-      // Mask off bits before the currentBitIndex in the first considered chunk
-      if (currentBitIndex === startIndex && bitOffsetInChunk > 0) {
-        chunk &= BooleanArray.ALL_BITS_TRUE << bitOffsetInChunk;
-      }
-
-      while (chunk !== 0 && currentBitIndex < actualEndIndex) {
-        // Find the LSB (Least Significant Bit)
+      // Process all set bits in this chunk
+      while (chunk !== 0) {
         const lsb = chunk & -chunk;
-        // Calculate its position (0-31) within the chunk
-        // (Math.clz32(lsb) ^ 31) is equivalent to finding trailing zeros for a power of 2
-        const lsbPositionInChunk = Math.clz32(lsb) ^ BooleanArray.CHUNK_MASK;
+        const bitPosition = Math.clz32(lsb) ^ BooleanArray.CHUNK_MASK;
+        const absoluteIndex = chunkBaseIndex + bitPosition;
 
-        const yieldedIndex = (currentChunkLoopIndex << BooleanArray.CHUNK_SHIFT) + lsbPositionInChunk;
+        if (absoluteIndex >= actualEndIndex) return;
 
-        if (yieldedIndex >= actualEndIndex) break; // Past the requested end
-
-        if (yieldedIndex >= currentBitIndex) { // Ensure we are at or past currentBitIndex
-          yield yieldedIndex;
-        }
-
-        // Clear the LSB to find the next set bit in this chunk
-        chunk &= chunk - 1;
-
-        // Update currentBitIndex to be one after the yielded index to ensure progress,
-        // or at least to the start of the next bit to check.
-        // This also helps if the loop didn't yield (e.g. lsb was before currentBitIndex due to initial masking)
-        currentBitIndex = yieldedIndex + 1;
+        yield absoluteIndex;
+        chunk &= chunk - 1; // Clear the LSB
       }
 
-      // Move to the next chunk
-      currentChunkLoopIndex++;
-      bitOffsetInChunk = 0; // Reset offset for the new chunk
-
-      // If we didn't find any bits in the previous chunk (or finished it),
-      // set currentBitIndex to the start of the new chunk.
-      if (currentBitIndex < (currentChunkLoopIndex << BooleanArray.CHUNK_SHIFT)) {
-        currentBitIndex = currentChunkLoopIndex << BooleanArray.CHUNK_SHIFT;
-      }
-
-      // Optimization: if currentBitIndex already meets or exceeds startIndex for the next iteration,
-      // no need to do special masking for the start of that chunk again.
+      chunkIndex++;
     }
   }
 }
