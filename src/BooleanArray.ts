@@ -270,24 +270,6 @@ export class BooleanArray {
   }
 
   /**
-   * Internal bounds check only (assumes value is already a safe integer)
-   * @param value the value to validate
-   * @param maxSize the maximum size of the array
-   * @returns the validated value
-   * @throws {RangeError} if value is out of bounds
-   */
-  static #assertInBounds(value: number, maxSize: number): number {
-    if (value >= maxSize) {
-      throw new RangeError(
-        `Index ${value} is out of bounds for array of size ${maxSize}. BooleanArrays are 0-indexed, try ${
-          maxSize - 1
-        } instead.`,
-      );
-    }
-    return value;
-  }
-
-  /**
    * Validate a value
    * @param value the value to validate
    * @param maxSize the maximum size of the array [default = BooleanArray.MAX_SAFE_SIZE]
@@ -296,18 +278,37 @@ export class BooleanArray {
    * @throws {RangeError} if `value` is less than 1, or is greater than maxSize or BooleanArray.MAX_SAFE_SIZE
    */
   static assertIsSafeValue(value: number, maxSize?: number): number {
+    // Fast type and range check
     if (!Number.isSafeInteger(value)) {
       throw new TypeError('"value" must be a safe integer.');
     }
+
+    // Single lower bound check
     if (value < 0) {
       throw new RangeError('"value" must be greater than or equal to 0.');
     }
-    if (value > BooleanArray.MAX_SAFE_SIZE) {
-      throw new RangeError(`"value" must be smaller than or equal to ${BooleanArray.MAX_SAFE_SIZE}.`);
-    }
+
     if (maxSize !== undefined) {
-      BooleanArray.#assertInBounds(value, maxSize);
+      // Validate maxSize directly to avoid circular dependency
+      if (!Number.isSafeInteger(maxSize) || maxSize < 0 || maxSize > BooleanArray.MAX_SAFE_SIZE) {
+        throw new TypeError('"maxSize" must be a safe integer above 0 and below BooleanArray.MAX_SAFE_SIZE.');
+      }
+
+      // Direct upper bound check against maxSize
+      if (value >= maxSize) {
+        throw new RangeError(
+          `Value ${value} is out of bounds for array of size ${maxSize}. BooleanArrays are 0-indexed, try ${
+            maxSize - 1
+          } instead.`,
+        );
+      }
+    } else {
+      // Direct upper bound check against MAX_SAFE_SIZE
+      if (value > BooleanArray.MAX_SAFE_SIZE) {
+        throw new RangeError(`"value" must be smaller than or equal to ${BooleanArray.MAX_SAFE_SIZE}.`);
+      }
     }
+
     return value;
   }
 
@@ -331,8 +332,11 @@ export class BooleanArray {
    * @param size The size of the BooleanArray
    * @param arr The array of numbers to create the BooleanArray from
    * @returns A new BooleanArray instance
-   * @throws {TypeError} if `arr` is not an array, or contains non-number or NaN values
-   * @throws {RangeError} if any index in `arr` is out of bounds
+   * @throws {RangeError} If `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
+   * @throws {TypeError} If `size` is not a safe value
+   * @throws {TypeError} If `arr` is not an array
+   * @throws {Error} If any index in `arr` is not a safe value
+   * @see {@link BooleanArray.assertIsSafeValue}
    *
    * @example
    * Creates a BooleanArray with 10 bits, setting the odd bits to true
@@ -364,8 +368,12 @@ export class BooleanArray {
    * @param key The key of the object to create the BooleanArray from
    * @param objs The array of objects to create the BooleanArray from
    * @returns A new BooleanArray instance
-   * @throws {TypeError} if any object's key value is not a finite number, or if `objs` is null/undefined
-   * @throws {RangeError} if any index is out of bounds
+   * @throws {TypeError} If `objs` is not an array
+   * @throws {TypeError} If `key` is null or undefined
+   * @throws {RangeError} If `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
+   * @throws {TypeError} If `size` is not a safe value
+   * @throws {Error} If any object's key value is not a safe value
+   * @see {@link BooleanArray.assertIsSafeValue}
    *
    * @example
    * ```ts
@@ -389,10 +397,7 @@ export class BooleanArray {
     const result = new BooleanArray(size);
     for (let i = 0; i < objs.length; i++) {
       const obj = objs[i];
-      if (obj == null) {
-        throw new TypeError(`"objs[${i}]" must not be null or undefined.`);
-      }
-      const index = obj[key] as number; // assertIsSafeValue will throw if not a number
+      const index = obj?.[key] as number; // assertIsSafeValue will throw if not a number
       BooleanArray.assertIsSafeValue(index, size);
       const chunk = index >>> BooleanArray.CHUNK_SHIFT;
       const mask = 1 << (index & BooleanArray.CHUNK_MASK);
@@ -535,12 +540,22 @@ export class BooleanArray {
 
   /**
    * Iterates over each bit in the array
-   * @param callback the callback to execute for each bit
+   * @param callback the callback to execute for each bit.
    * @param startIndex the start index to iterate from [default = 0]
    * @param count the number of booleans to iterate over [default = this.size - startIndex]
-   * @returns the current BooleanArray
+   * @returns the current BooleanArray for chaining
    * @throws {TypeError} if callback is not a function
    * @throws {RangeError} if startIndex or count is out of bounds
+   *
+   * @example
+   * ```ts
+   * const arr = new BooleanArray(5);
+   * arr.set(1, true).set(3, true);
+   * arr.forEach((value, index) => {
+   *   console.log(`arr[${index}] = ${value}`);
+   * });
+   * // Output: arr[0] = false, arr[1] = true, arr[2] = false, arr[3] = true, arr[4] = false
+   * ```
    */
   forEach(
     callback: (value: boolean, index: number, thisArg?: BooleanArray) => void,
@@ -553,7 +568,11 @@ export class BooleanArray {
     if (count === 0) return this;
     BooleanArray.assertIsSafeValue(startIndex, this.size);
     BooleanArray.assertIsSafeValue(count, this.size + 1);
-    BooleanArray.#assertInBounds(startIndex + count, this.size + 1);
+    if (startIndex + count > this.size) {
+      throw new RangeError(
+        `Range [${startIndex}, ${startIndex + count}) exceeds array size ${this.size}.`,
+      );
+    }
 
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
@@ -590,7 +609,11 @@ export class BooleanArray {
     BooleanArray.assertIsSafeValue(count, this.size + 1);
     if (count === 0) return [];
     BooleanArray.assertIsSafeValue(startIndex, this.size);
-    BooleanArray.#assertInBounds(startIndex + count, this.size + 1);
+    if (startIndex + count > this.size) {
+      throw new RangeError(
+        `Range [${startIndex}, ${startIndex + count}) exceeds array size ${this.size}.`,
+      );
+    }
 
     // Pre-allocate with specific size
     const result = new Array<boolean>(count);
@@ -848,7 +871,11 @@ export class BooleanArray {
     }
     BooleanArray.assertIsSafeValue(startIndex, this.size);
     BooleanArray.assertIsSafeValue(count, this.size + 1);
-    BooleanArray.#assertInBounds(startIndex + count, this.size + 1);
+    if (startIndex + count > this.size) {
+      throw new RangeError(
+        `Range [${startIndex}, ${startIndex + count}) exceeds array size ${this.size}.`,
+      );
+    }
 
     const startChunk = startIndex >>> BooleanArray.CHUNK_SHIFT;
     const endChunk = (startIndex + count - 1) >>> BooleanArray.CHUNK_SHIFT;
