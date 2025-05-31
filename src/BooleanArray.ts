@@ -421,7 +421,7 @@ export class BooleanArray {
    * @returns the number of chunks
    */
   static getChunkCount(bools: number): number {
-    return (bools + BooleanArray.BITS_PER_INT - 1) >>> BooleanArray.CHUNK_SHIFT;
+    return (bools + BooleanArray.CHUNK_MASK) >>> BooleanArray.CHUNK_SHIFT;
   }
 
   /**
