@@ -330,10 +330,191 @@ Deno.test("BooleanArray - Static Factory Methods", async (t) => {
     for (const index of indices) {
       assertEquals(array.get(index), true);
     }
+  });
 
-    // Empty array
-    const empty = BooleanArray.fromArray(100, []);
-    assertEquals(empty.isEmpty(), true);
+  await t.step("should create from array of booleans", () => {
+    const bools = [true, false, true, false];
+    const array = BooleanArray.fromArray(100, bools);
+
+    assertEquals(array.size, 100);
+    assertEquals(array.getTruthyCount(), 2);
+    for (let i = 0; i < bools.length; i++) {
+      assertEquals(array.get(i), bools[i]);
+    }
+  });
+
+  await t.step("should throw on invalid array length", () => {
+    assertThrows(() => BooleanArray.fromArray(100, []), TypeError);
+  });
+
+  await t.step("should create from Uint32Array", () => {
+    const size = 100;
+    const bufferLength = BooleanArray.getChunkCount(size); // Expected: 4 for size 100
+    const sourceBuffer = new Uint32Array(bufferLength);
+
+    // Intentionally set some bits to true
+    // Bit 0 (Chunk 0, offset 0)
+    sourceBuffer[0]! |= 1 << 0;
+    // Bit 31 (Chunk 0, offset 31)
+    sourceBuffer[0]! |= 1 << 31;
+    // Bit 32 (Chunk 1, offset 0)
+    sourceBuffer[1]! |= 1 << 0;
+    // Bit 99 (Chunk 3, offset 3, as 99 = 3*32 + 3)
+    sourceBuffer[3]! |= 1 << 3;
+
+    // To make the test more robust for unused bits, let's set some high bits
+    // in the last chunk of sourceBuffer that *should* be cleared by fromUint32Array.
+    // For size 100, bitsInLastChunk is 100 % 32 = 4. So, bits 0, 1, 2, 3 are used in the last chunk.
+    // Let's set bit 5 (offset 5) in the last chunk (index 3) of sourceBuffer.
+    // This bit is outside the logical size and should be cleared.
+    if (bufferLength > 0 && (size % BooleanArray.BITS_PER_INT) > 0) {
+      const lastChunkIndex = bufferLength - 1;
+      const bitsInLastChunk = size % BooleanArray.BITS_PER_INT;
+      if (bitsInLastChunk < BooleanArray.BITS_PER_INT - 1 && bitsInLastChunk < 5) { // ensure we are not setting used bits
+        sourceBuffer[lastChunkIndex]! |= 1 << 5; // Set a bit that should be unused
+      }
+    }
+
+    const array = BooleanArray.fromUint32Array(size, sourceBuffer);
+
+    assertEquals(array.size, size);
+    assertEquals(array.getTruthyCount(), 4, "Truthy count should be 4 based on set bits");
+
+    assertEquals(array.get(0), true, "Bit 0 should be true");
+    assertEquals(array.get(1), false, "Bit 1 should be false");
+    assertEquals(array.get(31), true, "Bit 31 should be true");
+    assertEquals(array.get(32), true, "Bit 32 should be true");
+    assertEquals(array.get(98), false, "Bit 98 should be false");
+    assertEquals(array.get(99), true, "Bit 99 should be true");
+
+    // Verify that the potentially set bit 5 in the last chunk of sourceBuffer (if applicable) was cleared.
+    // For size 100, last chunk (index 3) uses bits 0,1,2,3. Bit 5 should be 0.
+    if (size % BooleanArray.BITS_PER_INT !== 0) { // if last chunk is not full
+      const lastChunkActual = array.buffer[array.chunkCount - 1];
+      const fifthBitMask = 1 << 5;
+      if ((size % BooleanArray.BITS_PER_INT) <= 5) { // Only check if bit 5 is indeed an unused bit
+        assertEquals(lastChunkActual! & fifthBitMask, 0, "Unused bit 5 in last chunk should be cleared");
+      }
+    }
+    assertUnusedBitsZero(array, "fromUint32Array");
+  });
+
+  await t.step("should create from Uint32Array with specific binary patterns", () => {
+    const size = 96; // 3 chunks * 32 bits/chunk
+    const sourceBuffer = new Uint32Array([
+      0b10101010, // Chunk 0: bits 0-31.  Value 170. Popcount 4.
+      0b11111111, // Chunk 1: bits 32-63. Value 255. Popcount 8.
+      0b00000000, // Chunk 2: bits 64-95. Value 0.   Popcount 0.
+    ]);
+    const expectedBufferLength = BooleanArray.getChunkCount(size);
+    assertEquals(sourceBuffer.length, expectedBufferLength, "Source buffer length should match expected for size 96");
+
+    const array = BooleanArray.fromUint32Array(size, sourceBuffer);
+
+    assertEquals(array.size, size, "Array size should be 96");
+    assertEquals(array.getTruthyCount(), 12, "Truthy count should be 4 + 8 + 0 = 12");
+
+    // Test bits from chunk 0 (0b10101010)
+    assertEquals(array.get(0), false, "Bit 0 (Chunk 0, LSB) should be false");
+    assertEquals(array.get(1), true, "Bit 1 (Chunk 0) should be true");
+    assertEquals(array.get(2), false, "Bit 2 (Chunk 0) should be false");
+    assertEquals(array.get(3), true, "Bit 3 (Chunk 0) should be true");
+    assertEquals(array.get(4), false, "Bit 4 (Chunk 0) should be false");
+    assertEquals(array.get(5), true, "Bit 5 (Chunk 0) should be true");
+    assertEquals(array.get(6), false, "Bit 6 (Chunk 0) should be false");
+    assertEquals(array.get(7), true, "Bit 7 (Chunk 0) should be true");
+    assertEquals(array.get(8), false, "Bit 8 (Chunk 0) should be false"); // Higher bits are 0
+    assertEquals(array.get(31), false, "Bit 31 (Chunk 0, MSB for this pattern) should be false");
+
+    // Test bits from chunk 1 (0b11111111)
+    assertEquals(array.get(32), true, "Bit 32 (Chunk 1, LSB) should be true");
+    assertEquals(array.get(33), true, "Bit 33 (Chunk 1) should be true");
+    assertEquals(array.get(34), true, "Bit 34 (Chunk 1) should be true");
+    assertEquals(array.get(35), true, "Bit 35 (Chunk 1) should be true");
+    assertEquals(array.get(36), true, "Bit 36 (Chunk 1) should be true");
+    assertEquals(array.get(37), true, "Bit 37 (Chunk 1) should be true");
+    assertEquals(array.get(38), true, "Bit 38 (Chunk 1) should be true");
+    assertEquals(array.get(39), true, "Bit 39 (Chunk 1) should be true");
+    assertEquals(array.get(40), false, "Bit 40 (Chunk 1) should be false"); // Higher bits are 0
+    assertEquals(array.get(63), false, "Bit 63 (Chunk 1, MSB for this pattern) should be false");
+
+    // Test bits from chunk 2 (0b00000000)
+    for (let i = 0; i < 32; i++) {
+      assertEquals(array.get(64 + i), false, `Bit ${64 + i} (Chunk 2) should be false`);
+    }
+
+    // Since size 96 is a multiple of 32, the last chunk is full.
+    // assertUnusedBitsZero will return early as bitsInLastChunk is 0.
+    assertUnusedBitsZero(array, "fromUint32Array with specific binary patterns");
+  });
+
+  await t.step("should create from Uint32Array with decimal number patterns", () => {
+    const size = 128; // 4 chunks * 32 bits/chunk
+    const sourceBuffer = new Uint32Array([
+      12, // Chunk 0: 0b00001100. Popcount 2.
+      255, // Chunk 1: 0b11111111. Popcount 8.
+      170, // Chunk 2: 0b10101010. Popcount 4.
+      66, // Chunk 3: 0b01000010. Popcount 2.
+    ]);
+    const expectedBufferLength = BooleanArray.getChunkCount(size);
+    assertEquals(sourceBuffer.length, expectedBufferLength, "Source buffer length should match expected for size 128");
+
+    const array = BooleanArray.fromUint32Array(size, sourceBuffer);
+
+    assertEquals(array.size, size, "Array size should be 128");
+    assertEquals(array.getTruthyCount(), 16, "Truthy count should be 2 + 8 + 4 + 2 = 16");
+
+    // Test bits from chunk 0 (12 = 0b1100)
+    assertEquals(array.get(0), false, "Bit 0 (Chunk 0) should be false");
+    assertEquals(array.get(1), false, "Bit 1 (Chunk 0) should be false");
+    assertEquals(array.get(2), true, "Bit 2 (Chunk 0) should be true");
+    assertEquals(array.get(3), true, "Bit 3 (Chunk 0) should be true");
+    assertEquals(array.get(4), false, "Bit 4 (Chunk 0) should be false");
+
+    // Test bits from chunk 1 (255 = 0b11111111)
+    for (let i = 0; i < 8; i++) {
+      assertEquals(array.get(32 + i), true, `Bit ${32 + i} (Chunk 1) should be true`);
+    }
+    assertEquals(array.get(40), false, "Bit 40 (Chunk 1, after 8 set bits) should be false");
+
+    // Test bits from chunk 2 (170 = 0b10101010)
+    // Pattern: false, true, false, true, false, true, false, true for LSBs
+    for (let i = 0; i < 8; i++) {
+      assertEquals(array.get(64 + i), (i % 2) !== 0, `Bit ${64 + i} (Chunk 2) should be ${(i % 2) !== 0}`);
+    }
+    assertEquals(array.get(72), false, "Bit 72 (Chunk 2, after pattern) should be false");
+
+    // Test bits from chunk 3 (66 = 0b01000010)
+    // Pattern: 0, 1, 0, 0, 0, 0, 1, 0 for LSBs
+    assertEquals(array.get(96), false, "Bit 96 (Chunk 3) should be false"); // LSB
+    assertEquals(array.get(97), true, "Bit 97 (Chunk 3) should be true"); // Offset 1
+    assertEquals(array.get(98), false, "Bit 98 (Chunk 3) should be false"); // Offset 2
+    assertEquals(array.get(99), false, "Bit 99 (Chunk 3) should be false"); // Offset 3
+    assertEquals(array.get(100), false, "Bit 100 (Chunk 3) should be false"); // Offset 4
+    assertEquals(array.get(101), false, "Bit 101 (Chunk 3) should be false"); // Offset 5
+    assertEquals(array.get(102), true, "Bit 102 (Chunk 3) should be true"); // Offset 6
+    assertEquals(array.get(103), false, "Bit 103 (Chunk 3) should be false"); // Offset 7
+    assertEquals(array.get(104), false, "Bit 104 (Chunk 3, after pattern) should be false");
+
+    // Since size 128 is a multiple of 32, the last chunk is full.
+    assertUnusedBitsZero(array, "fromUint32Array with decimal number patterns");
+  });
+
+  await t.step("should create from Uint32Array with too small buffer", () => {
+    const size = 100;
+    const buffer = new Uint32Array([4294967295]);
+    const arr = BooleanArray.fromUint32Array(size, buffer);
+    assertEquals(arr.get(0), true);
+    assertEquals(arr.get(1), true);
+    assertEquals(arr.get(2), true);
+    assertEquals(arr.get(3), true);
+    assertEquals(arr.get(4), true);
+    assertEquals(arr.get(5), true);
+    assertEquals(arr.get(6), true);
+    assertEquals(arr.get(7), true);
+    assertEquals(arr.get(31), true);
+    assertEquals(arr.get(32), false);
+    assertEquals(arr.get(99), false);
   });
 
   await t.step("should create from objects", () => {
@@ -368,6 +549,9 @@ Deno.test("BooleanArray - Static Factory Methods", async (t) => {
     assertThrows(() => BooleanArray.fromArray(100, [-Infinity]), TypeError);
 
     // fromObjects validation
+    assertThrows(() => BooleanArray.fromObjects(100, "id", []), TypeError);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => BooleanArray.fromObjects(100, "id", [{}]), TypeError);
     assertThrows(() => BooleanArray.fromObjects(100, "id", [{ id: 1 }, { id: "2" }]), TypeError);
     assertThrows(() => BooleanArray.fromObjects(100, "id", [{ id: 1 }, {}]), TypeError);
     // @ts-expect-error - Testing runtime behavior
@@ -378,6 +562,26 @@ Deno.test("BooleanArray - Static Factory Methods", async (t) => {
     assertThrows(() => BooleanArray.fromObjects(100, "id", [{ id: 1 }, null]), TypeError);
     assertThrows(() => BooleanArray.fromObjects(100, "id", [{ id: Infinity }]), TypeError);
     assertThrows(() => BooleanArray.fromObjects(100, "id", [{ id: NaN }]), TypeError);
+
+    // fromUint32Array validation
+    const tooLargeBuffer = new Uint32Array([255, 255, 255, 255]);
+    assertThrows(
+      () => BooleanArray.fromUint32Array(2, tooLargeBuffer), // size 2 expects buffer of length 1
+      RangeError,
+      "Input array length (4) does not match expected buffer length (1) for a BooleanArray of size 2.",
+    );
+    assertThrows(() => BooleanArray.fromUint32Array(32, null as any), TypeError, '"arr" must be an ArrayLike<number>');
+
+    assertThrows(
+      () => BooleanArray.fromUint32Array(32, {} as ArrayLike<number>),
+      TypeError,
+      '"arr" must be an ArrayLike<number>',
+    );
+    assertThrows(
+      () => BooleanArray.fromUint32Array(0, new Uint32Array(0)),
+      RangeError,
+      '"size" must be greater than or equal to 1.',
+    );
   });
 });
 

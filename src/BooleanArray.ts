@@ -335,7 +335,7 @@ export class BooleanArray {
    * @throws {RangeError} If `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
    * @throws {TypeError} If `size` is not a safe value
    * @throws {TypeError} If `arr` is not an array
-   * @throws {Error} If any index in `arr` is not a safe value
+   * @throws {RangeError} If `arr.length` is larger than `size`
    * @see {@link BooleanArray.assertIsSafeValue}
    *
    * @example
@@ -347,18 +347,73 @@ export class BooleanArray {
    * console.log(boolArray.get(1)); // true
    * ```
    */
-  static fromArray(size: number, arr: Array<number>): BooleanArray {
+  static fromArray<T extends number | boolean>(size: number, arr: Array<T>): BooleanArray {
     if (!Array.isArray(arr)) {
       throw new TypeError('"arr" must be an array.');
     }
-    const pool = new BooleanArray(size);
-    for (let i = 0; i < arr.length; i++) {
-      const index = arr[i]!;
-      BooleanArray.assertIsSafeValue(index, size);
-      const chunk = index >>> BooleanArray.CHUNK_SHIFT;
-      const mask = 1 << (index & BooleanArray.CHUNK_MASK);
-      pool.buffer[chunk]! |= mask;
+    if (arr.length > size) {
+      throw new RangeError(`"arr" must be smaller than or equal to ${size}.`);
     }
+
+    const pool = new BooleanArray(size);
+
+    if (typeof arr[0] === "boolean") {
+      for (let i = 0; i < arr.length; i++) {
+        const index = arr[i]! as boolean;
+        const chunk = i >>> BooleanArray.CHUNK_SHIFT;
+        const mask = 1 << (i & BooleanArray.CHUNK_MASK);
+        pool.buffer[chunk]! |= index ? mask : 0;
+      }
+    } else if (typeof arr[0] === "number") {
+      for (let i = 0; i < arr.length; i++) {
+        const index = arr[i]! as number;
+        BooleanArray.assertIsSafeValue(index, size);
+        const chunk = index >>> BooleanArray.CHUNK_SHIFT;
+        const mask = 1 << (index & BooleanArray.CHUNK_MASK);
+        pool.buffer[chunk]! |= mask;
+      }
+    } else {
+      throw new TypeError('"arr" must be an array of numbers or booleans.');
+    }
+
+    return pool;
+  }
+
+  /**
+   * Create a BooleanArray from a Uint32Array
+   * @param size The size of the BooleanArray
+   * @param arr The Uint32Array to create the BooleanArray from
+   * @returns A new BooleanArray instance
+   * @throws {RangeError} If `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
+   * @throws {TypeError} If `size` is not a safe value
+   * @throws {RangeError} If `arr.length` does not match the expected buffer length `size`
+   * @throws {TypeError} If `arr` is not an ArrayLike<number>
+   * @see {@link BooleanArray.assertIsSafeValue}
+   */
+  static fromUint32Array(size: number, arr: ArrayLike<number>): BooleanArray {
+    BooleanArray.assertIsSafeValue(size);
+    if (size === 0) {
+      throw new RangeError('"size" must be greater than or equal to 1.');
+    }
+    if (!arr || typeof arr.length !== "number") {
+      throw new TypeError('"arr" must be an ArrayLike<number> (e.g., Uint32Array or number[]).');
+    }
+
+    const expectedBufferLength = BooleanArray.getChunkCount(size);
+    if (arr.length > expectedBufferLength) {
+      throw new RangeError(
+        `Input array length (${arr.length}) does not match expected buffer length (${expectedBufferLength}) for a BooleanArray of size ${size}.`,
+      );
+    }
+
+    const pool = new BooleanArray(size); // Creates a zeroed buffer of the correct length
+    pool.buffer.set(arr); // Copies content from arr to pool.buffer
+
+    // Ensure unused bits in the last chunk are zeroed out
+    if (pool.bitsInLastChunk > 0) {
+      pool.buffer[pool.chunkCount - 1]! &= pool.lastChunkMask;
+    }
+
     return pool;
   }
 
@@ -388,8 +443,8 @@ export class BooleanArray {
    * ```
    */
   static fromObjects<T>(size: number, key: keyof T, objs: T[]): BooleanArray {
-    if (!Array.isArray(objs)) {
-      throw new TypeError('"objs" must be an array.');
+    if (!Array.isArray(objs) || objs.length === 0) {
+      throw new TypeError('"objs" must be a non-empty array.');
     }
     if (key == null) {
       throw new TypeError('"key" must not be null or undefined.');
