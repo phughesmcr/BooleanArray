@@ -202,20 +202,20 @@ export class BooleanArray {
       return pool;
     } else if (typeof arr[0] === "boolean") {
       for (let i = 0; i < arr.length; i++) {
-        const index = arr[i]!;
-        if (typeof index !== "boolean") {
+        const bit = arr[i]!;
+        if (typeof bit !== "boolean") {
           throw new TypeError('"arr" must be an array of booleans.');
         }
         const chunk = i >>> BooleanArray.CHUNK_SHIFT;
         const mask = 1 << (i & BooleanArray.CHUNK_MASK);
-        pool.buffer[chunk]! |= index ? mask : 0;
+        pool.buffer[chunk]! |= bit ? mask : 0;
       }
     } else if (typeof arr[0] === "number") {
       for (let i = 0; i < arr.length; i++) {
-        const index = arr[i]! as number;
-        BooleanArray.assertIsSafeValue(index, size);
-        const chunk = index >>> BooleanArray.CHUNK_SHIFT;
-        const mask = 1 << (index & BooleanArray.CHUNK_MASK);
+        const bit = arr[i]! as number;
+        BooleanArray.assertIsSafeValue(bit, size);
+        const chunk = bit >>> BooleanArray.CHUNK_SHIFT;
+        const mask = 1 << (bit & BooleanArray.CHUNK_MASK);
         pool.buffer[chunk]! |= mask;
       }
     } else {
