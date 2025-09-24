@@ -1,6 +1,4 @@
 // deno-lint-ignore-file no-console
-/// <reference lib="deno.ns" />
-/// <reference lib="dom" />
 
 /**
  * @description This module demonstrates the usage of the BooleanArray class.
