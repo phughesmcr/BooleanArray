@@ -114,7 +114,7 @@ export class BooleanArray {
    * @param maxSize the maximum size of the array [default = BooleanArray.MAX_SAFE_SIZE]
    * @returns the validated value
    * @throws {TypeError} if `value` is not a safe integer
-   * @throws {RangeError} if `value` is less than 1, or is greater than maxSize or BooleanArray.MAX_SAFE_SIZE
+   * @throws {RangeError} if `value` is less than 0, or is greater than maxSize or BooleanArray.MAX_SAFE_SIZE
    */
   static assertIsSafeValue(value: number, maxSize?: number): number {
     // Fast type and range check
@@ -130,7 +130,7 @@ export class BooleanArray {
     if (maxSize !== undefined) {
       // Validate maxSize directly to avoid circular dependency
       if (!Number.isSafeInteger(maxSize) || maxSize < 0 || maxSize > BooleanArray.MAX_SAFE_SIZE) {
-        throw new TypeError('"maxSize" must be a safe integer between 0 and BooleanArray.MAX_SAFE_SIZE - 1.');
+        throw new TypeError('"maxSize" must be a safe integer between 0 and BooleanArray.MAX_SAFE_SIZE.');
       }
 
       // Direct upper bound check against maxSize
