@@ -198,7 +198,9 @@ export class BooleanArray {
 
     const pool = new BooleanArray(size);
 
-    if (typeof arr[0] === "boolean") {
+    if (arr.length === 0) {
+      return pool;
+    } else if (typeof arr[0] === "boolean") {
       for (let i = 0; i < arr.length; i++) {
         const index = arr[i]!;
         if (typeof index !== "boolean") {
