@@ -613,6 +613,10 @@ export class BooleanArray {
     // If looking for false, invert the chunk before applying mask
     if (!value) {
       firstChunk = ~firstChunk;
+      // If this first-chunk is also the last logical chunk, mask off unused bits
+      if (startChunk === this.chunkCount - 1 && this.bitsInLastChunk > 0) {
+        firstChunk &= this.lastChunkMask;
+      }
     }
 
     firstChunk &= firstChunkMask;
