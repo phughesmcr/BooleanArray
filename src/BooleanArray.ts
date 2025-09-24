@@ -287,13 +287,16 @@ export class BooleanArray {
    * ```
    */
   static fromObjects<T>(size: number, key: keyof T, objs: T[]): BooleanArray {
-    if (!Array.isArray(objs) || objs.length === 0) {
-      throw new TypeError('"objs" must be a non-empty array.');
+    if (!Array.isArray(objs)) {
+      throw new TypeError('"objs" must be an array.');
     }
     if (key == null) {
       throw new TypeError('"key" must not be null or undefined.');
     }
     const result = new BooleanArray(size);
+    if (objs.length === 0) {
+      return result;
+    }
     for (let i = 0; i < objs.length; i++) {
       const obj = objs[i];
       const index = obj?.[key] as number; // assertIsSafeValue will throw if not a number

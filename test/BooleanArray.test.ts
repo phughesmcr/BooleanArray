@@ -578,7 +578,9 @@ Deno.test("BooleanArray - Static Factory Methods", async (t) => {
     assertThrows(() => BooleanArray.fromArray(100, [-Infinity]), TypeError);
 
     // fromObjects validation
-    assertThrows(() => BooleanArray.fromObjects(100, "id", []), TypeError);
+    // empty array is allowed and should return an empty-initialized instance
+    const emptyFromObjects = BooleanArray.fromObjects<{ id: number }>(100, "id", []);
+    assertEquals(emptyFromObjects.getTruthyCount(), 0);
     // @ts-expect-error - Testing runtime behavior
     assertThrows(() => BooleanArray.fromObjects(100, "id", [{}]), TypeError);
     assertThrows(() => BooleanArray.fromObjects(100, "id", [{ id: 1 }, { id: "2" }]), TypeError);
