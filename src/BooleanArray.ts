@@ -125,6 +125,9 @@ const xnor = binaryOperation.bind(null, (a, b) => ~(a ^ b));
  * @returns true if the arrays are equal, false otherwise
  */
 function equals(a: BooleanArray, b: BooleanArray): boolean {
+  if (a === b) {
+    return true;
+  }
   if (a.size !== b.size) {
     return false;
   }
