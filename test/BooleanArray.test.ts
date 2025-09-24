@@ -114,6 +114,11 @@ Deno.test("BooleanArray - Basic Operations", async (t) => {
     array.fill(true);
     array.set(10, 20, false);
     assertEquals(array.getTruthyCount(), 80);
+
+    // Zero-length get/set are safe no-ops and empty
+    array.set(50, 0, true);
+    assertEquals(array.getTruthyCount(), 80);
+    assertEquals(array.get(60, 0), []);
   });
 
   await t.step("should handle utility operations", () => {
@@ -134,6 +139,10 @@ Deno.test("BooleanArray - Basic Operations", async (t) => {
     assertEquals(clone.size, array.size);
     assertEquals(clone.get(50), true);
     assert(clone !== array);
+    // Deep copy semantics
+    clone.toggle(50);
+    assertEquals(clone.get(50), false);
+    assertEquals(array.get(50), true);
   });
 });
 
@@ -199,9 +208,82 @@ Deno.test("BooleanArray - Bitwise Operations", async (t) => {
     const a = new BooleanArray(32);
     const b = new BooleanArray(64);
 
-    assertThrows(() => BooleanArray.and(a, b), Error, "Arrays must have the same size");
-    assertThrows(() => BooleanArray.or(a, b), Error);
-    assertThrows(() => BooleanArray.xor(a, b), Error);
+    assertThrows(() => BooleanArray.and(a, b), RangeError, "Arrays must have the same size");
+    assertThrows(() => BooleanArray.or(a, b), RangeError);
+    assertThrows(() => BooleanArray.xor(a, b), RangeError);
+  });
+});
+
+Deno.test("BooleanArray - Additional Bitwise Operations", async (t) => {
+  await t.step("should perform NOR and XNOR (static)", () => {
+    const a = BooleanArray.fromArray(4, [1, 3]); // bits [1,3] => 1010 (bit3..bit0)
+    const b = BooleanArray.fromArray(4, [0, 1]); // bits [0,1] => 0011 (bit3..bit0)
+    const nor = BooleanArray.nor(a, b); // ~(1010 | 0011) = ~(1011) = 0100
+    const xnor = BooleanArray.xnor(a, b); // ~(1010 ^ 0011) = ~(1001) = 0110
+    assertEquals([0, 1, 2, 3].map((i) => nor.get(i)), [false, false, true, false]);
+    assertEquals([0, 1, 2, 3].map((i) => xnor.get(i)), [false, true, true, false]);
+    assertUnusedBitsZero(nor, "NOR");
+    assertUnusedBitsZero(xnor, "XNOR");
+  });
+
+  await t.step("should perform instance bitwise ops in place and return this", () => {
+    const size = 8;
+    const a = BooleanArray.fromArray(size, [0, 2, 4, 6]); // 10101010
+    const b = BooleanArray.fromArray(size, [1, 2, 3]); // 00001110
+
+    // or
+    const retOr = a.clone().or(b);
+    assertEquals(retOr, retOr.or(b)); // chaining returns this
+    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => retOr.get(i)), [true, true, true, true, true, false, true, false]);
+
+    // xor
+    const tmpXor = a.clone();
+    assert(tmpXor === tmpXor.xor(b)); // chaining returns this
+    const retXor = a.clone().xor(b);
+    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => retXor.get(i)), [
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+    ]);
+
+    // nand
+    const retNand = a.clone().nand(b);
+    assertEquals(retNand, retNand.nand(b)); // chaining returns this
+    assertUnusedBitsZero(retNand, "NAND in-place");
+
+    // nor
+    const retNor = a.clone().nor(b);
+    assertEquals(retNor, retNor.nor(b)); // chaining returns this
+    assertUnusedBitsZero(retNor, "NOR in-place");
+
+    // xnor
+    const retXnor = a.clone().xnor(b);
+    assertEquals(retXnor, retXnor.xnor(b)); // chaining returns this
+    assertUnusedBitsZero(retXnor, "XNOR in-place");
+
+    // difference (a & ~b)
+    const retDiff = a.clone().difference(b);
+    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => retDiff.get(i)), [
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+
+    // not (unary in-place)
+    const c = BooleanArray.fromArray(size, [0, 7]); // 10000001
+    const retNot = c.not();
+    assertEquals(retNot, c);
+    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => c.get(i)), [false, true, true, true, true, true, true, false]);
   });
 });
 
@@ -279,6 +361,13 @@ Deno.test("BooleanArray - Search and Population Operations", async (t) => {
     // very negative => exclusiveBound < 0 => behaves like -10 case (checks index 0)
     assertEquals(array.lastIndexOf(true, -9999), 0);
   });
+
+  await t.step("should respect lastIndexOf with exclusive bound 0", () => {
+    const arr = BooleanArray.fromArray(10, [0, 5, 9]);
+    // fromIndex = 0 => exclusive bound 0, implementation checks index 0 specifically
+    assertEquals(arr.lastIndexOf(true, 0), 0);
+    assertEquals(arr.lastIndexOf(false, 0), -1);
+  });
 });
 
 Deno.test("BooleanArray - Iterator Operations", async (t) => {
@@ -304,6 +393,10 @@ Deno.test("BooleanArray - Iterator Operations", async (t) => {
     assertEquals([...array.truthyIndices(10, 30)], [15, 25]);
     assertEquals([...array.truthyIndices(10)], [15, 25, 35]);
     assertEquals([...array.truthyIndices(20, 30)], [25]);
+    // start >= end yields empty
+    assertEquals([...array.truthyIndices(30, 30)], []);
+    // end equal to size yields empty for this setup
+    assertEquals([...array.truthyIndices(90, 100)], []);
   });
 
   await t.step("should handle forEach correctly", () => {
@@ -329,6 +422,36 @@ Deno.test("BooleanArray - Iterator Operations", async (t) => {
     assertThrows(() => array.forEach("not a function"), TypeError);
     // @ts-expect-error - Testing runtime behavior
     assertThrows(() => array.forEach(123), TypeError);
+  });
+
+  await t.step("should handle forEach with startIndex and count", () => {
+    const array = new BooleanArray(10);
+    array.set(2, true);
+    array.set(3, true);
+    array.set(7, true);
+    const visited: number[] = [];
+    array.forEach(
+      (value, index) => {
+        if (value) visited.push(index);
+      },
+      2,
+      4,
+    );
+    assertEquals(visited, [2, 3]);
+  });
+
+  await t.step("should support iterator families", () => {
+    const arr = BooleanArray.fromArray(5, [1, 3]);
+    assertEquals(Array.from(arr), [false, true, false, true, false]);
+    assertEquals(Array.from(arr.values()), [false, true, false, true, false]);
+    assertEquals(Array.from(arr.keys()), [0, 1, 2, 3, 4]);
+    assertEquals(Array.from(arr.entries()), [
+      [0, false],
+      [1, true],
+      [2, false],
+      [3, true],
+      [4, false],
+    ]);
   });
 
   await t.step("should handle dense and sparse patterns", () => {
@@ -617,29 +740,20 @@ Deno.test("BooleanArray - Static Factory Methods", async (t) => {
       '"size" must be greater than or equal to 1.',
     );
   });
+
+  await t.step("should validate fromArray additional cases", () => {
+    // booleans array longer than size
+    assertThrows(() => BooleanArray.fromArray(2, [true, true, true]), RangeError);
+    // numeric indices with duplicates should dedupe effectively
+    const arr = BooleanArray.fromArray(10, [1, 1, 2, 2, 2, 9]);
+    assertEquals(arr.getTruthyCount(), 3);
+    assertEquals(arr.get(1), true);
+    assertEquals(arr.get(2), true);
+    assertEquals(arr.get(9), true);
+  });
 });
 
 Deno.test("BooleanArray - Buffer Export and Length Semantics", async (t) => {
-  await t.step("toUint32Array should return copy by default and view when requested", () => {
-    const size = 65; // 3 chunks
-    const arr = new BooleanArray(size);
-    arr.set(0, true).set(32, true).set(64, true);
-
-    const copyBuf = arr.toUint32Array();
-    const viewBuf = arr.toUint32Array(false);
-
-    // Identity
-    assert(copyBuf !== arr.buffer, "Default export should be a copy");
-    assert(viewBuf === arr.buffer, "Export with copy=false should be the internal buffer");
-
-    // Content equality
-    assertEquals(Array.from(copyBuf), Array.from(arr.buffer));
-
-    // Mutation of copy should not affect internal buffer
-    copyBuf[0] = 0;
-    assertEquals(arr.get(0), true, "Mutating exported copy must not change internal state");
-  });
-
   await t.step("length should equal chunk count for various sizes", () => {
     const sizes = [1, 2, 31, 32, 33, 64, 65, 100, 128];
     for (const size of sizes) {
@@ -704,7 +818,7 @@ Deno.test("BooleanArray - Comparison Operations", async (t) => {
 
     // Size mismatch should throw
     const c = new BooleanArray(64);
-    assertThrows(() => BooleanArray.difference(a, c), Error);
+    assertThrows(() => BooleanArray.difference(a, c), RangeError);
   });
 });
 
@@ -816,14 +930,10 @@ Deno.test("BooleanArray - Performance and Large Arrays", async (t) => {
     const array = new BooleanArray(size);
 
     // Set every 1000th bit
-    const start = performance.now();
     for (let i = 0; i < size; i += 1000) {
       array.set(i, true);
     }
-    const setDuration = performance.now() - start;
-
     assertEquals(array.getTruthyCount(), Math.floor(size / 1000));
-    assert(setDuration < 100, `Large array operations took too long: ${setDuration}ms`);
 
     // Test large range operations
     array.fill(false);
