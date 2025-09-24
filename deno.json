@@ -7,14 +7,9 @@
     "include": ["bench/**/*.bench.ts"]
   },
   "compilerOptions": {
-    "erasableSyntaxOnly": true,
-    "strictBindCallApply": true,
-    "strictBuiltinIteratorReturn": true,
-    "strictFunctionTypes": true,
-    "strictNullChecks": true,
-    "strictPropertyInitialization": true,
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
+    "erasableSyntaxOnly": true,
     "lib": ["es2022"],
     "noErrorTruncation": true,
     "noFallthroughCasesInSwitch": true,
@@ -27,6 +22,11 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "strict": true,
+    "strictBindCallApply": true,
+    "strictBuiltinIteratorReturn": true,
+    "strictFunctionTypes": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": true,
     "verbatimModuleSyntax": true
   },
   "exclude": ["example/**/*.ts"],
