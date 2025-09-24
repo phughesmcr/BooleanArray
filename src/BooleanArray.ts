@@ -594,7 +594,7 @@ export class BooleanArray {
       throw new TypeError('"fromIndex" must be a safe integer.');
     }
 
-    let start = Math.trunc(fromIndex);
+    let start = fromIndex | 0;
     if (start < 0) {
       start = this.size + start;
       if (start < 0) start = 0;
@@ -657,7 +657,7 @@ export class BooleanArray {
    * @returns the index of the last occurrence of the value, or -1 if the value is not present.
    */
   lastIndexOf(value: boolean, fromIndex: number = this.size): number {
-    let exclusiveBound = Math.trunc(fromIndex);
+    let exclusiveBound = fromIndex | 0;
     if (exclusiveBound < 0) {
       exclusiveBound = this.size + exclusiveBound;
     } else if (exclusiveBound > this.size) {
