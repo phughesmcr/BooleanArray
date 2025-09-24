@@ -372,8 +372,10 @@ Deno.test("BooleanArray - Static Factory Methods", async (t) => {
     }
   });
 
-  await t.step("should throw on invalid array length", () => {
-    assertThrows(() => BooleanArray.fromArray(100, []), TypeError);
+  await t.step("should allow empty initializer array", () => {
+    const array = BooleanArray.fromArray(100, []);
+    assertEquals(array.size, 100);
+    assertEquals(array.getTruthyCount(), 0);
   });
 
   await t.step("should create from Uint32Array", () => {
@@ -614,6 +616,51 @@ Deno.test("BooleanArray - Static Factory Methods", async (t) => {
       RangeError,
       '"size" must be greater than or equal to 1.',
     );
+  });
+});
+
+Deno.test("BooleanArray - Buffer Export and Length Semantics", async (t) => {
+  await t.step("toUint32Array should return copy by default and view when requested", () => {
+    const size = 65; // 3 chunks
+    const arr = new BooleanArray(size);
+    arr.set(0, true).set(32, true).set(64, true);
+
+    const copyBuf = arr.toUint32Array();
+    const viewBuf = arr.toUint32Array(false);
+
+    // Identity
+    assert(copyBuf !== arr.buffer, "Default export should be a copy");
+    assert(viewBuf === arr.buffer, "Export with copy=false should be the internal buffer");
+
+    // Content equality
+    assertEquals(Array.from(copyBuf), Array.from(arr.buffer));
+
+    // Mutation of copy should not affect internal buffer
+    copyBuf[0] = 0;
+    assertEquals(arr.get(0), true, "Mutating exported copy must not change internal state");
+  });
+
+  await t.step("length should equal chunk count for various sizes", () => {
+    const sizes = [1, 2, 31, 32, 33, 64, 65, 100, 128];
+    for (const size of sizes) {
+      const arr = new BooleanArray(size);
+      assertEquals(arr.length, BooleanArray.getChunkCount(size));
+    }
+  });
+});
+
+Deno.test("BooleanArray - Search: last-chunk indexOf(false) masking", async (t) => {
+  await t.step("size 33, bits 0 and 32 set, indexOf(false, 32) should be -1", () => {
+    const arr = new BooleanArray(33);
+    arr.set(0, true);
+    arr.set(32, true);
+    assertEquals(arr.indexOf(false, 32), -1);
+  });
+
+  await t.step("size 33 filled with true, indexOf(false, 32) should be -1", () => {
+    const arr = new BooleanArray(33);
+    arr.fill(true);
+    assertEquals(arr.indexOf(false, 32), -1);
   });
 });
 
