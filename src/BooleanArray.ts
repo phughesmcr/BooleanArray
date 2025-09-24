@@ -7,8 +7,6 @@
 
 /**
  * Helper function for binary bitwise operations
- * @param a the first BooleanArray
- * @param b the second BooleanArray
  * @param operation the bitwise operation to perform on each chunk
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
@@ -37,7 +35,6 @@ function binaryOperation(
 
 /**
  * Helper function for unary bitwise operations
- * @param a the BooleanArray to operate on
  * @param operation the bitwise operation to perform on each chunk
  * @param inPlace whether the operation should be performed in-place
  * @returns a BooleanArray with the result
@@ -61,8 +58,6 @@ function unaryOperation(
 
 /**
  * Bitwise AND operation
- * @param a the first BooleanArray
- * @param b the second BooleanArray
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -71,8 +66,6 @@ const and = binaryOperation.bind(null, (a, b) => a & b);
 
 /**
  * Bitwise difference operation
- * @param a the first BooleanArray
- * @param b the second BooleanArray
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -81,8 +74,6 @@ const difference = binaryOperation.bind(null, (a, b) => a & ~b);
 
 /**
  * Bitwise NAND operation
- * @param a the first BooleanArray
- * @param b the second BooleanArray
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -91,8 +82,6 @@ const nand = binaryOperation.bind(null, (a, b) => ~(a & b));
 
 /**
  * Bitwise NOR operation
- * @param a the first BooleanArray
- * @param b the second BooleanArray
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -109,8 +98,6 @@ const not = unaryOperation.bind(null, (a) => ~a);
 
 /**
  * Bitwise OR operation
- * @param a the first BooleanArray
- * @param b the second BooleanArray
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -119,8 +106,6 @@ const or = binaryOperation.bind(null, (a, b) => a | b);
 
 /**
  * Bitwise XOR operation
- * @param a the first BooleanArray
- * @param b the second BooleanArray
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -129,8 +114,6 @@ const xor = binaryOperation.bind(null, (a, b) => a ^ b);
 
 /**
  * Bitwise XNOR operation
- * @param a the first BooleanArray
- * @param b the second BooleanArray
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -139,8 +122,6 @@ const xnor = binaryOperation.bind(null, (a, b) => ~(a ^ b));
 
 /**
  * Check if two BooleanArrays are equal
- * @param a the first BooleanArray
- * @param b the second BooleanArray
  * @returns true if the arrays are equal, false otherwise
  */
 function equals(a: BooleanArray, b: BooleanArray): boolean {
@@ -174,8 +155,6 @@ export class BooleanArray {
 
   /**
    * Performs a bitwise AND operation with two BooleanArrays
-   * @param a the first BooleanArray
-   * @param b the second BooleanArray
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
    */
@@ -185,8 +164,6 @@ export class BooleanArray {
 
   /**
    * Performs a bitwise difference operation with two BooleanArrays
-   * @param a the first BooleanArray
-   * @param b the second BooleanArray
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
    */
@@ -196,8 +173,6 @@ export class BooleanArray {
 
   /**
    * Checks if two BooleanArrays are equal
-   * @param a the first BooleanArray
-   * @param b the second BooleanArray
    * @returns `true` if the arrays are equal, `false` otherwise
    */
   static equals(a: BooleanArray, b: BooleanArray): boolean {
@@ -206,8 +181,6 @@ export class BooleanArray {
 
   /**
    * Performs a bitwise NAND operation with two BooleanArrays
-   * @param a the first BooleanArray
-   * @param b the second BooleanArray
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
    */
@@ -217,8 +190,6 @@ export class BooleanArray {
 
   /**
    * Performs a bitwise NOR operation with two BooleanArrays
-   * @param a the first BooleanArray
-   * @param b the second BooleanArray
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
    */
@@ -228,7 +199,6 @@ export class BooleanArray {
 
   /**
    * Performs a bitwise NOT operation with a BooleanArray
-   * @param a the BooleanArray to perform the bitwise NOT operation on
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` is not a BooleanArray
    */
@@ -238,8 +208,6 @@ export class BooleanArray {
 
   /**
    * Performs a bitwise OR operation with two BooleanArrays
-   * @param a the first BooleanArray
-   * @param b the second BooleanArray
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
    */
