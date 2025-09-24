@@ -250,6 +250,35 @@ Deno.test("BooleanArray - Search and Population Operations", async (t) => {
     assertEquals(array.lastIndexOf(true), 33);
     assertEquals(array.lastIndexOf(true, 32), 31);
   });
+
+  await t.step("should support size-equal and negative fromIndex semantics", () => {
+    const size = 10;
+    const array = new BooleanArray(size);
+    array.set(0, true);
+    array.set(5, true);
+    array.set(9, true);
+
+    // fromIndex == size
+    assertEquals(array.indexOf(true, size), -1);
+    assertEquals(array.indexOf(false, size), -1);
+    assertEquals(array.lastIndexOf(true, size), 9);
+
+    // negative fromIndex for indexOf (forward search)
+    // -1 => start at size - 1 = 9
+    assertEquals(array.indexOf(true, -1), 9);
+    // -2 => start at 8 => next true is 9
+    assertEquals(array.indexOf(true, -2), 9);
+    // very negative clamps to start at 0
+    assertEquals(array.indexOf(true, -9999), 0);
+
+    // negative fromIndex for lastIndexOf (backward search with exclusive bound)
+    // -1 => exclusiveBound = size - 1 => inclusiveIndex = size - 2 = 8
+    assertEquals(array.lastIndexOf(true, -1), 5);
+    // -10 => exclusiveBound = 0 => check index 0 specifically
+    assertEquals(array.lastIndexOf(true, -10), 0);
+    // very negative => exclusiveBound < 0 => behaves like -10 case (checks index 0)
+    assertEquals(array.lastIndexOf(true, -9999), 0);
+  });
 });
 
 Deno.test("BooleanArray - Iterator Operations", async (t) => {

@@ -712,10 +712,21 @@ export class BooleanArray {
    * @returns the index of the first occurrence of the value, or -1 if the value is not present.
    */
   indexOf(value: boolean, fromIndex: number = 0): number {
-    BooleanArray.assertIsSafeValue(fromIndex, this.size);
+    if (!Number.isSafeInteger(fromIndex)) {
+      throw new TypeError('"fromIndex" must be a safe integer.');
+    }
 
-    const startChunk = fromIndex >>> BooleanArray.CHUNK_SHIFT;
-    const startOffset = fromIndex & BooleanArray.CHUNK_MASK;
+    let start = Math.trunc(fromIndex);
+    if (start < 0) {
+      start = this.size + start;
+      if (start < 0) start = 0;
+    }
+    if (start >= this.size) {
+      return -1;
+    }
+
+    const startChunk = start >>> BooleanArray.CHUNK_SHIFT;
+    const startOffset = start & BooleanArray.CHUNK_MASK;
 
     // Handle first chunk with mask for bits after startOffset
     const firstChunkMask = (BooleanArray.ALL_BITS_TRUE << startOffset) >>> 0;
@@ -764,14 +775,20 @@ export class BooleanArray {
    * @returns the index of the last occurrence of the value, or -1 if the value is not present.
    */
   lastIndexOf(value: boolean, fromIndex: number = this.size): number {
-    BooleanArray.assertIsSafeValue(fromIndex, this.size + 1);
+    let exclusiveBound = Math.trunc(fromIndex);
+    if (exclusiveBound < 0) {
+      exclusiveBound = this.size + exclusiveBound;
+    } else if (exclusiveBound > this.size) {
+      exclusiveBound = this.size;
+    }
 
-    if (fromIndex === 0) {
+    if (exclusiveBound <= 0) {
+      // Follow previous behavior which checks index 0 when fromIndex === 0
       return this.#getBit(0) === value ? 0 : -1;
     }
 
     // We search in the range [0, searchUpToBitIndex_inclusive]
-    const searchUpToBitIndex_inclusive = fromIndex - 1;
+    const searchUpToBitIndex_inclusive = exclusiveBound - 1;
 
     const startChunk = searchUpToBitIndex_inclusive >>> BooleanArray.CHUNK_SHIFT;
     const bitOffsetInStartChunk = searchUpToBitIndex_inclusive & BooleanArray.CHUNK_MASK;
