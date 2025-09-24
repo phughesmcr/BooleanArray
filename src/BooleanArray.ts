@@ -186,7 +186,9 @@ export class BooleanArray {
    * console.log(boolArray.get(1)); // true
    * ```
    */
-  static fromArray<T extends number | boolean>(size: number, arr: Array<T>): BooleanArray {
+  static fromArray(size: number, arr: number[]): BooleanArray;
+  static fromArray(size: number, arr: boolean[]): BooleanArray;
+  static fromArray(size: number, arr: Array<number | boolean>): BooleanArray {
     if (!Array.isArray(arr)) {
       throw new TypeError('"arr" must be an array.');
     }
@@ -198,7 +200,10 @@ export class BooleanArray {
 
     if (typeof arr[0] === "boolean") {
       for (let i = 0; i < arr.length; i++) {
-        const index = arr[i]! as boolean;
+        const index = arr[i]!;
+        if (typeof index !== "boolean") {
+          throw new TypeError('"arr" must be an array of booleans.');
+        }
         const chunk = i >>> BooleanArray.CHUNK_SHIFT;
         const mask = 1 << (i & BooleanArray.CHUNK_MASK);
         pool.buffer[chunk]! |= index ? mask : 0;
