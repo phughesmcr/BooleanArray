@@ -262,7 +262,7 @@ export class BooleanArray {
     if (maxSize !== undefined) {
       // Validate maxSize directly to avoid circular dependency
       if (!Number.isSafeInteger(maxSize) || maxSize < 0 || maxSize > BooleanArray.MAX_SAFE_SIZE) {
-        throw new TypeError('"maxSize" must be a safe integer above 0 and below BooleanArray.MAX_SAFE_SIZE.');
+        throw new TypeError('"maxSize" must be a safe integer between 0 and BooleanArray.MAX_SAFE_SIZE - 1.');
       }
 
       // Direct upper bound check against maxSize
