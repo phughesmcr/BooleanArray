@@ -26,7 +26,7 @@ export function binaryOperation(
   const result = inPlace ? a : new BooleanArray(a.size);
   const len = a.buffer.length;
   for (let i = 0; i < len; i++) {
-    result.buffer[i] = operation(a.buffer[i]!, b.buffer[i]!);
+    result.buffer[i] = operation(a.buffer[i]!, b.buffer[i]!) >>> 0;
   }
   // Mask off unused bits in the last chunk
   if (result.bitsInLastChunk > 0) {
@@ -49,7 +49,7 @@ export function unaryOperation(
   const result = inPlace ? a : new BooleanArray(a.size);
   const len = a.buffer.length;
   for (let i = 0; i < len; i++) {
-    result.buffer[i] = operation(a.buffer[i]!);
+    result.buffer[i] = operation(a.buffer[i]!) >>> 0;
   }
   // Mask off unused bits in the last chunk
   if (result.bitsInLastChunk > 0) {
