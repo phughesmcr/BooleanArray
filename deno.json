@@ -3,6 +3,7 @@
   "version": "0.9.0",
   "license": "MIT",
   "exports": "./mod.ts",
+  "lock": true,
   "bench": {
     "include": ["bench/**/*.bench.ts"]
   },
@@ -11,6 +12,7 @@
     "allowUnusedLabels": false,
     "erasableSyntaxOnly": true,
     "lib": ["es2022"],
+    "module": "esnext",
     "noErrorTruncation": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
@@ -29,7 +31,6 @@
     "strictPropertyInitialization": true,
     "verbatimModuleSyntax": true
   },
-  "exclude": ["example/**/*.ts"],
   "fmt": {
     "newLineKind": "lf",
     "indentWidth": 2,
@@ -41,6 +42,7 @@
     "exclude": ["example/**/*.ts", "*.md", "LICENSE"]
   },
   "lint": {
+    "exclude": ["example/**/*.ts"],
     "rules": {
       "tags": [
         "jsr",
@@ -71,5 +73,8 @@
   },
   "test": {
     "include": ["test/**/*.test.ts"]
+  },
+  "publish": {
+    "exclude": ["example/**", "bench/**", "test/**", ".github/**"]
   }
 }
