@@ -342,7 +342,7 @@ export class BooleanArray {
 
   /**
    * The total number of booleans in the array
-   * @note for the total number of indices @see {@link BooleanArray.length}
+   * Note: for the total number of indices @see {@link BooleanArray.length}
    */
   readonly size: number;
 
@@ -358,7 +358,6 @@ export class BooleanArray {
   /**
    * Creates a new BooleanArray
    * @param size the number of booleans required in the array (min = 1, max = BooleanArray.MAX_SAFE_SIZE)
-   * @returns a new BooleanArray
    * @throws {RangeError} if `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
    * @throws {TypeError} if `size` is not a safe integer or NaN
    */
@@ -381,7 +380,7 @@ export class BooleanArray {
 
   /**
    * @returns the total number of indices in the array
-   * @note for the total number of booleans @see {@link BooleanArray.size}
+   * Note: for the total number of booleans @see {@link BooleanArray.size}
    */
   get length(): number {
     return this.chunkCount;
@@ -553,10 +552,10 @@ export class BooleanArray {
   }
 
   /**
-   * Get multiple boolean values from the array
-   * @param startIndex the start index to get the booleans from
-   * @param count the number of booleans to get
-   * @returns an array of booleans
+   * Get a single boolean value or a contiguous range of values.
+   * @param indexOrStartIndex the index for single access, or the start index for range access
+   * @param count optional number of booleans to retrieve when reading a range
+   * @returns a boolean when count is undefined; otherwise an array of booleans
    */
   get(index: number): boolean;
   get(startIndex: number, count: number): boolean[];
@@ -995,13 +994,12 @@ export class BooleanArray {
   }
 
   /**
-   * Set a range of bits to a given value
-   * @param startIndex the start index to set the range from
-   * @param count the number of booleans to set
-   * @param value the boolean value to set
+   * Set a single bit or a range of bits to a given value.
+   * @param indexOrStartIndex the index to set, or the start index of the range
+   * @param valueOrCount the boolean value (single-bit) or the number of booleans to set (range)
+   * @param value optional boolean value to set when using the range form
    * @returns `this` for chaining
-   * @throws {RangeError} if `startIndex` is out of bounds
-   * @throws {RangeError} if `count` is out of bounds
+   * @throws {RangeError} if indices are out of bounds
    */
   set(index: number, value: boolean): this;
   set(startIndex: number, count: number, value: boolean): this;
