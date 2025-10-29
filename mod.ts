@@ -5,6 +5,6 @@
  * @module      BooleanArray
  */
 
-import { BooleanArray } from "./src/BooleanArray.ts";
+import { BooleanArray } from "./src/boolean-array.ts";
 export { BooleanArray };
 export default BooleanArray;

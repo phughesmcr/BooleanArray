@@ -5,7 +5,7 @@
  * @module
  */
 
-import { BooleanArray } from "./BooleanArray.ts";
+import { BooleanArray } from "./boolean-array.ts";
 
 /**
  * Helper function for binary bitwise operations

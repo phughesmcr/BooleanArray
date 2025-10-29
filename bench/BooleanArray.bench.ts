@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 /// <reference lib="dom" />
 
-import { BooleanArray } from "../src/BooleanArray.ts";
+import { BooleanArray } from "../mod.ts";
 
 // Add before benchmarks
 const warmupArray = new BooleanArray(1024);

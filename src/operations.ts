@@ -5,7 +5,7 @@
  * @module
  */
 
-import type { BooleanArray } from "./BooleanArray.ts";
+import type { BooleanArray } from "./boolean-array.ts";
 import { binaryOperation, unaryOperation } from "./utils.ts";
 
 /**
