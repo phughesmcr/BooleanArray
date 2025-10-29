@@ -741,6 +741,8 @@ export class BooleanArray {
     const buffer = this.buffer;
     const shift = BooleanArray.CHUNK_SHIFT;
     const mask = BooleanArray.CHUNK_MASK;
+    const chunkCount = this.chunkCount;
+    const lastChunkMask = this.lastChunkMask;
     const startChunk = searchUpToBitIndex_inclusive >>> shift;
     const bitOffsetInStartChunk = searchUpToBitIndex_inclusive & mask;
 
@@ -751,8 +753,8 @@ export class BooleanArray {
     if (!value) {
       firstChunkValue = ~firstChunkValue;
       // Mask out bits beyond the logical size if this is the last chunk
-      if (startChunk === this.chunkCount - 1 && this.bitsInLastChunk > 0) {
-        firstChunkValue &= this.lastChunkMask;
+      if (startChunk === chunkCount - 1 && this.bitsInLastChunk > 0) {
+        firstChunkValue &= lastChunkMask;
       }
     }
 
