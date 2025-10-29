@@ -487,17 +487,20 @@ export class BooleanArray {
       );
     }
 
+    const buffer = this.buffer;
+    const mask = BooleanArray.CHUNK_MASK;
+    const shift = BooleanArray.CHUNK_SHIFT;
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
 
     const endIndex = startIndex + count;
     for (let i = startIndex; i < endIndex; i++) {
-      const chunkForThisBit = i >>> BooleanArray.CHUNK_SHIFT;
+      const chunkForThisBit = i >>> shift;
       if (chunkForThisBit !== currentChunkIndex) {
         currentChunkIndex = chunkForThisBit;
-        currentChunkValue = this.buffer[currentChunkIndex]!;
+        currentChunkValue = buffer[currentChunkIndex]!;
       }
-      const offset = i & BooleanArray.CHUNK_MASK;
+      const offset = i & mask;
       callback((currentChunkValue & (1 << offset)) !== 0, i, this);
     }
     return this;
@@ -530,17 +533,20 @@ export class BooleanArray {
 
     // Pre-allocate with specific size
     const result = new Array<boolean>(count);
+    const buffer = this.buffer;
+    const mask = BooleanArray.CHUNK_MASK;
+    const shift = BooleanArray.CHUNK_SHIFT;
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
 
     for (let i = 0; i < count; i++) {
       const index = startIndex + i;
-      const chunkForThisBit = index >>> BooleanArray.CHUNK_SHIFT;
+      const chunkForThisBit = index >>> shift;
       if (chunkForThisBit !== currentChunkIndex) {
         currentChunkIndex = chunkForThisBit;
-        currentChunkValue = this.buffer[currentChunkIndex]!;
+        currentChunkValue = buffer[currentChunkIndex]!;
       }
-      const offset = index & BooleanArray.CHUNK_MASK;
+      const offset = index & mask;
       result[i] = (currentChunkValue & (1 << offset)) !== 0;
     }
     return result;
@@ -591,17 +597,20 @@ export class BooleanArray {
       throw new RangeError('"out" length must be greater than or equal to "count".');
     }
 
+    const buffer = this.buffer;
+    const mask = BooleanArray.CHUNK_MASK;
+    const shift = BooleanArray.CHUNK_SHIFT;
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
 
     for (let i = 0; i < count; i++) {
       const index = startIndex + i;
-      const chunkForThisBit = index >>> BooleanArray.CHUNK_SHIFT;
+      const chunkForThisBit = index >>> shift;
       if (chunkForThisBit !== currentChunkIndex) {
         currentChunkIndex = chunkForThisBit;
-        currentChunkValue = this.buffer[currentChunkIndex]!;
+        currentChunkValue = buffer[currentChunkIndex]!;
       }
-      const offset = index & BooleanArray.CHUNK_MASK;
+      const offset = index & mask;
       out[i] = (currentChunkValue & (1 << offset)) !== 0;
     }
     return this;
@@ -612,12 +621,13 @@ export class BooleanArray {
    * @returns the number of set bits in the array
    */
   getTruthyCount(): number {
-    let count = 0;
+    const buffer = this.buffer;
     const lastIndex = this.chunkCount - 1;
+    let count = 0;
 
     // Count all full chunks
     for (let i = 0; i < lastIndex; i++) {
-      let value = this.buffer[i]!;
+      let value = buffer[i]!;
       value = value - ((value >>> 1) & 0x55555555);
       value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);
       value = (value + (value >>> 4)) & 0x0f0f0f0f;
@@ -625,7 +635,7 @@ export class BooleanArray {
     }
 
     // Handle last chunk with pre-calculated mask
-    let value = this.buffer[lastIndex]! & this.lastChunkMask;
+    let value = buffer[lastIndex]! & this.lastChunkMask;
     value = value - ((value >>> 1) & 0x55555555);
     value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);
     value = (value + (value >>> 4)) & 0x0f0f0f0f;
@@ -654,19 +664,24 @@ export class BooleanArray {
       return -1;
     }
 
-    const startChunk = start >>> BooleanArray.CHUNK_SHIFT;
-    const startOffset = start & BooleanArray.CHUNK_MASK;
+    const buffer = this.buffer;
+    const shift = BooleanArray.CHUNK_SHIFT;
+    const mask = BooleanArray.CHUNK_MASK;
+    const chunkCount = this.chunkCount;
+    const lastChunkMask = this.lastChunkMask;
+    const startChunk = start >>> shift;
+    const startOffset = start & mask;
 
     // Handle first chunk with mask for bits after startOffset
     const firstChunkMask = (BooleanArray.ALL_BITS_TRUE << startOffset) >>> 0;
-    let firstChunk = this.buffer[startChunk]!;
+    let firstChunk = buffer[startChunk]!;
 
     // If looking for false, invert the chunk before applying mask
     if (!value) {
       firstChunk = ~firstChunk;
       // If this first-chunk is also the last logical chunk, mask off unused bits
-      if (startChunk === this.chunkCount - 1 && this.bitsInLastChunk > 0) {
-        firstChunk &= this.lastChunkMask;
+      if (startChunk === chunkCount - 1 && this.bitsInLastChunk > 0) {
+        firstChunk &= lastChunkMask;
       }
     }
 
@@ -679,15 +694,15 @@ export class BooleanArray {
     }
 
     // Search remaining chunks
-    for (let i = startChunk + 1; i < this.chunkCount; i++) {
-      let chunk = this.buffer[i]!;
+    for (let i = startChunk + 1; i < chunkCount; i++) {
+      let chunk = buffer[i]!;
 
       // If looking for false, invert the chunk
       if (!value) {
         chunk = ~chunk;
         // Mask out bits beyond the logical size in the last chunk
-        if (i === this.chunkCount - 1 && this.bitsInLastChunk > 0) {
-          chunk &= this.lastChunkMask;
+        if (i === chunkCount - 1 && this.bitsInLastChunk > 0) {
+          chunk &= lastChunkMask;
         }
       }
 
@@ -723,11 +738,14 @@ export class BooleanArray {
     // We search in the range [0, searchUpToBitIndex_inclusive]
     const searchUpToBitIndex_inclusive = exclusiveBound - 1;
 
-    const startChunk = searchUpToBitIndex_inclusive >>> BooleanArray.CHUNK_SHIFT;
-    const bitOffsetInStartChunk = searchUpToBitIndex_inclusive & BooleanArray.CHUNK_MASK;
+    const buffer = this.buffer;
+    const shift = BooleanArray.CHUNK_SHIFT;
+    const mask = BooleanArray.CHUNK_MASK;
+    const startChunk = searchUpToBitIndex_inclusive >>> shift;
+    const bitOffsetInStartChunk = searchUpToBitIndex_inclusive & mask;
 
     // Handle the first chunk (the one containing searchUpToBitIndex_inclusive)
-    let firstChunkValue = this.buffer[startChunk]!;
+    let firstChunkValue = buffer[startChunk]!;
 
     // If looking for false, invert the chunk
     if (!value) {
@@ -755,7 +773,7 @@ export class BooleanArray {
 
     // Search remaining chunks backwards (from startChunk - 1 down to 0)
     for (let i = startChunk - 1; i >= 0; i--) {
-      let chunkValue = this.buffer[i]!;
+      let chunkValue = buffer[i]!;
 
       // If looking for false, invert the chunk
       if (!value) {
@@ -776,8 +794,10 @@ export class BooleanArray {
    * @returns `true` if the array is empty, `false` otherwise
    */
   isEmpty(): boolean {
-    for (let i = 0; i < this.chunkCount; i++) {
-      if (this.buffer[i] !== 0) return false;
+    const buffer = this.buffer;
+    const len = this.chunkCount;
+    for (let i = 0; i < len; i++) {
+      if (buffer[i] !== 0) return false;
     }
     return true;
   }
@@ -1020,32 +1040,38 @@ export class BooleanArray {
 
   /** Iterator */
   *[Symbol.iterator](): IterableIterator<boolean> {
+    const buffer = this.buffer;
+    const mask = BooleanArray.CHUNK_MASK;
+    const shift = BooleanArray.CHUNK_SHIFT;
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
 
     for (let i = 0; i < this.size; i++) {
-      const chunkForThisBit = i >>> BooleanArray.CHUNK_SHIFT;
+      const chunkForThisBit = i >>> shift;
       if (chunkForThisBit !== currentChunkIndex) {
         currentChunkIndex = chunkForThisBit;
-        currentChunkValue = this.buffer[currentChunkIndex]!;
+        currentChunkValue = buffer[currentChunkIndex]!;
       }
-      const offset = i & BooleanArray.CHUNK_MASK;
+      const offset = i & mask;
       yield (currentChunkValue & (1 << offset)) !== 0;
     }
   }
 
   /** Returns an iterable of key, value pairs for every entry in the array */
   *entries(): IterableIterator<[number, boolean]> {
+    const buffer = this.buffer;
+    const mask = BooleanArray.CHUNK_MASK;
+    const shift = BooleanArray.CHUNK_SHIFT;
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
 
     for (let i = 0; i < this.size; i++) {
-      const chunkForThisBit = i >>> BooleanArray.CHUNK_SHIFT;
+      const chunkForThisBit = i >>> shift;
       if (chunkForThisBit !== currentChunkIndex) {
         currentChunkIndex = chunkForThisBit;
-        currentChunkValue = this.buffer[currentChunkIndex]!;
+        currentChunkValue = buffer[currentChunkIndex]!;
       }
-      const offset = i & BooleanArray.CHUNK_MASK;
+      const offset = i & mask;
       yield [i, (currentChunkValue & (1 << offset)) !== 0];
     }
   }
@@ -1059,16 +1085,19 @@ export class BooleanArray {
 
   /** Returns an iterable of values in the array */
   *values(): IterableIterator<boolean> {
+    const buffer = this.buffer;
+    const mask = BooleanArray.CHUNK_MASK;
+    const shift = BooleanArray.CHUNK_SHIFT;
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
 
     for (let i = 0; i < this.size; i++) {
-      const chunkForThisBit = i >>> BooleanArray.CHUNK_SHIFT;
+      const chunkForThisBit = i >>> shift;
       if (chunkForThisBit !== currentChunkIndex) {
         currentChunkIndex = chunkForThisBit;
-        currentChunkValue = this.buffer[currentChunkIndex]!;
+        currentChunkValue = buffer[currentChunkIndex]!;
       }
-      const offset = i & BooleanArray.CHUNK_MASK;
+      const offset = i & mask;
       yield (currentChunkValue & (1 << offset)) !== 0;
     }
   }
@@ -1086,16 +1115,19 @@ export class BooleanArray {
 
     const actualEndIndex = Math.min(endIndex, this.size);
 
-    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
-    const endChunk = (actualEndIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
+    const buffer = this.buffer;
+    const shift = BooleanArray.CHUNK_SHIFT;
+    const mask = BooleanArray.CHUNK_MASK;
+    let chunkIndex = startIndex >>> shift;
+    const endChunk = (actualEndIndex - 1) >>> shift;
 
     while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
-      let chunk = this.buffer[chunkIndex]!;
-      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
+      let chunk = buffer[chunkIndex]!;
+      const chunkBaseIndex = chunkIndex << shift;
 
       // Mask off bits before startIndex in the first chunk
-      if (chunkIndex === (startIndex >>> BooleanArray.CHUNK_SHIFT)) {
-        const startBitOffset = startIndex & BooleanArray.CHUNK_MASK;
+      if (chunkIndex === (startIndex >>> shift)) {
+        const startBitOffset = startIndex & mask;
         chunk &= BooleanArray.ALL_BITS_TRUE << startBitOffset;
       }
 

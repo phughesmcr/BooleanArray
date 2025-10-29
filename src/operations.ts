@@ -6,7 +6,6 @@
  */
 
 import type { BooleanArray } from "./boolean-array.ts";
-import { binaryOperation, unaryOperation } from "./utils.ts";
 
 /**
  * Bitwise AND operation
@@ -14,7 +13,22 @@ import { binaryOperation, unaryOperation } from "./utils.ts";
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
  */
-export const and = binaryOperation.bind(null, (a, b) => a & b);
+export function and(a: BooleanArray, b: BooleanArray, inPlace: boolean = false): BooleanArray {
+  if (a.size !== b.size) {
+    throw new RangeError("Arrays must have the same size");
+  }
+  const result = inPlace ? a : new (a.constructor as { new (size: number): BooleanArray })(a.size);
+  const aBuf = a.buffer;
+  const bBuf = b.buffer;
+  const rBuf = result.buffer;
+  for (let i = 0; i < aBuf.length; i++) {
+    rBuf[i] = (aBuf[i]! & bBuf[i]!) >>> 0;
+  }
+  if (result.bitsInLastChunk > 0) {
+    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+  }
+  return result;
+}
 
 /**
  * Bitwise difference operation
@@ -22,7 +36,22 @@ export const and = binaryOperation.bind(null, (a, b) => a & b);
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
  */
-export const difference = binaryOperation.bind(null, (a, b) => a & ~b);
+export function difference(a: BooleanArray, b: BooleanArray, inPlace: boolean = false): BooleanArray {
+  if (a.size !== b.size) {
+    throw new RangeError("Arrays must have the same size");
+  }
+  const result = inPlace ? a : new (a.constructor as { new (size: number): BooleanArray })(a.size);
+  const aBuf = a.buffer;
+  const bBuf = b.buffer;
+  const rBuf = result.buffer;
+  for (let i = 0; i < aBuf.length; i++) {
+    rBuf[i] = (aBuf[i]! & ~bBuf[i]!) >>> 0;
+  }
+  if (result.bitsInLastChunk > 0) {
+    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+  }
+  return result;
+}
 
 /**
  * Bitwise NAND operation
@@ -30,7 +59,22 @@ export const difference = binaryOperation.bind(null, (a, b) => a & ~b);
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
  */
-export const nand = binaryOperation.bind(null, (a, b) => ~(a & b));
+export function nand(a: BooleanArray, b: BooleanArray, inPlace: boolean = false): BooleanArray {
+  if (a.size !== b.size) {
+    throw new RangeError("Arrays must have the same size");
+  }
+  const result = inPlace ? a : new (a.constructor as { new (size: number): BooleanArray })(a.size);
+  const aBuf = a.buffer;
+  const bBuf = b.buffer;
+  const rBuf = result.buffer;
+  for (let i = 0; i < aBuf.length; i++) {
+    rBuf[i] = ~(aBuf[i]! & bBuf[i]!) >>> 0;
+  }
+  if (result.bitsInLastChunk > 0) {
+    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+  }
+  return result;
+}
 
 /**
  * Bitwise NOR operation
@@ -38,7 +82,22 @@ export const nand = binaryOperation.bind(null, (a, b) => ~(a & b));
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
  */
-export const nor = binaryOperation.bind(null, (a, b) => ~(a | b));
+export function nor(a: BooleanArray, b: BooleanArray, inPlace: boolean = false): BooleanArray {
+  if (a.size !== b.size) {
+    throw new RangeError("Arrays must have the same size");
+  }
+  const result = inPlace ? a : new (a.constructor as { new (size: number): BooleanArray })(a.size);
+  const aBuf = a.buffer;
+  const bBuf = b.buffer;
+  const rBuf = result.buffer;
+  for (let i = 0; i < aBuf.length; i++) {
+    rBuf[i] = ~(aBuf[i]! | bBuf[i]!) >>> 0;
+  }
+  if (result.bitsInLastChunk > 0) {
+    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+  }
+  return result;
+}
 
 /**
  * Bitwise NOT operation
@@ -46,7 +105,18 @@ export const nor = binaryOperation.bind(null, (a, b) => ~(a | b));
  * @param inPlace whether the operation should be performed in-place
  * @returns a BooleanArray with the result
  */
-export const not = unaryOperation.bind(null, (a) => ~a);
+export function not(a: BooleanArray, inPlace: boolean = false): BooleanArray {
+  const result = inPlace ? a : new (a.constructor as { new (size: number): BooleanArray })(a.size);
+  const aBuf = a.buffer;
+  const rBuf = result.buffer;
+  for (let i = 0; i < aBuf.length; i++) {
+    rBuf[i] = ~aBuf[i]! >>> 0;
+  }
+  if (result.bitsInLastChunk > 0) {
+    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+  }
+  return result;
+}
 
 /**
  * Bitwise OR operation
@@ -54,7 +124,22 @@ export const not = unaryOperation.bind(null, (a) => ~a);
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
  */
-export const or = binaryOperation.bind(null, (a, b) => a | b);
+export function or(a: BooleanArray, b: BooleanArray, inPlace: boolean = false): BooleanArray {
+  if (a.size !== b.size) {
+    throw new RangeError("Arrays must have the same size");
+  }
+  const result = inPlace ? a : new (a.constructor as { new (size: number): BooleanArray })(a.size);
+  const aBuf = a.buffer;
+  const bBuf = b.buffer;
+  const rBuf = result.buffer;
+  for (let i = 0; i < aBuf.length; i++) {
+    rBuf[i] = (aBuf[i]! | bBuf[i]!) >>> 0;
+  }
+  if (result.bitsInLastChunk > 0) {
+    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+  }
+  return result;
+}
 
 /**
  * Bitwise XOR operation
@@ -62,7 +147,22 @@ export const or = binaryOperation.bind(null, (a, b) => a | b);
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
  */
-export const xor = binaryOperation.bind(null, (a, b) => a ^ b);
+export function xor(a: BooleanArray, b: BooleanArray, inPlace: boolean = false): BooleanArray {
+  if (a.size !== b.size) {
+    throw new RangeError("Arrays must have the same size");
+  }
+  const result = inPlace ? a : new (a.constructor as { new (size: number): BooleanArray })(a.size);
+  const aBuf = a.buffer;
+  const bBuf = b.buffer;
+  const rBuf = result.buffer;
+  for (let i = 0; i < aBuf.length; i++) {
+    rBuf[i] = (aBuf[i]! ^ bBuf[i]!) >>> 0;
+  }
+  if (result.bitsInLastChunk > 0) {
+    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+  }
+  return result;
+}
 
 /**
  * Bitwise XNOR operation
@@ -70,7 +170,22 @@ export const xor = binaryOperation.bind(null, (a, b) => a ^ b);
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
  */
-export const xnor = binaryOperation.bind(null, (a, b) => ~(a ^ b));
+export function xnor(a: BooleanArray, b: BooleanArray, inPlace: boolean = false): BooleanArray {
+  if (a.size !== b.size) {
+    throw new RangeError("Arrays must have the same size");
+  }
+  const result = inPlace ? a : new (a.constructor as { new (size: number): BooleanArray })(a.size);
+  const aBuf = a.buffer;
+  const bBuf = b.buffer;
+  const rBuf = result.buffer;
+  for (let i = 0; i < aBuf.length; i++) {
+    rBuf[i] = ~(aBuf[i]! ^ bBuf[i]!) >>> 0;
+  }
+  if (result.bitsInLastChunk > 0) {
+    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+  }
+  return result;
+}
 
 /**
  * Check if two BooleanArrays are equal
