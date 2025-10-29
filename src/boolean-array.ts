@@ -944,6 +944,24 @@ export class BooleanArray {
       return this;
     }
 
+    // for small cross-chunk ranges, set per-bit
+    if (count <= 16) {
+      const buffer = this.buffer;
+      const shift = BooleanArray.CHUNK_SHIFT;
+      const mask = BooleanArray.CHUNK_MASK;
+      for (let i = 0; i < count; i++) {
+        const idx = startIndex + i;
+        const chunk = idx >>> shift;
+        const bitMask = 1 << (idx & mask);
+        if (value) {
+          buffer[chunk]! |= bitMask;
+        } else {
+          buffer[chunk]! &= ~bitMask;
+        }
+      }
+      return this;
+    }
+
     // 1. Handle the first (potentially partial) chunk
     const firstChunkStartOffset = startIndex & BooleanArray.CHUNK_MASK;
     const firstChunkMask = (BooleanArray.ALL_BITS_TRUE << firstChunkStartOffset) >>> 0;
