@@ -9,6 +9,9 @@ import { and, difference, equals, nand, nor, not, or, xnor, xor } from "./operat
 
 /** A fast boolean array backed by a Uint32Array */
 export class BooleanArray {
+  /** An empty array of booleans */
+  static readonly EMPTY_ARRAY: readonly boolean[] = Object.freeze([]);
+
   /** The number of bits per chunk */
   static readonly BITS_PER_INT = 32 as const;
 
@@ -166,12 +169,12 @@ export class BooleanArray {
    * @returns `true` if the value is valid, `false` otherwise
    */
   static isSafeValue(value: number, maxSize?: number): boolean {
-    try {
-      BooleanArray.assertIsSafeValue(value, maxSize);
-      return true;
-    } catch {
-      return false;
+    if (!Number.isSafeInteger(value) || value < 0) return false;
+    if (maxSize !== undefined) {
+      if (!Number.isSafeInteger(maxSize) || maxSize < 0 || maxSize > BooleanArray.MAX_SAFE_SIZE) return false;
+      return value < maxSize;
     }
+    return value <= BooleanArray.MAX_SAFE_SIZE;
   }
 
   /**
@@ -387,8 +390,8 @@ export class BooleanArray {
   }
 
   /**
-   * @returns the total number of indices in the array
-   * Note: for the total number of booleans @see {@link BooleanArray.size}
+   * @returns the number of 32-bit chunks in the underlying buffer
+   * Note: for the total number of booleans use {@link BooleanArray.size}
    */
   get length(): number {
     return this.chunkCount;
@@ -531,7 +534,7 @@ export class BooleanArray {
    */
   #getRange(startIndex: number, count: number): boolean[] {
     BooleanArray.assertIsSafeValue(count, this.size + 1);
-    if (count === 0) return [];
+    if (count === 0) return BooleanArray.EMPTY_ARRAY as boolean[];
     BooleanArray.assertIsSafeValue(startIndex, this.size);
     if (startIndex + count > this.size) {
       throw new RangeError(
@@ -740,7 +743,7 @@ export class BooleanArray {
     }
 
     if (exclusiveBound <= 0) {
-      // Follow previous behavior which checks index 0 when fromIndex === 0
+      // When exclusiveBound is 0 or negative, check index 0 specifically
       return this.#getBit(0) === value ? 0 : -1;
     }
 
@@ -769,13 +772,13 @@ export class BooleanArray {
 
     if (firstChunkValue !== 0) {
       // Create a mask for bits from 0 up to bitOffsetInStartChunk (inclusive)
-      let mask;
+      let chunkMask;
       if (bitOffsetInStartChunk === BooleanArray.CHUNK_MASK) {
-        mask = BooleanArray.ALL_BITS_TRUE;
+        chunkMask = BooleanArray.ALL_BITS_TRUE;
       } else {
-        mask = ((1 << (bitOffsetInStartChunk + 1)) - 1) >>> 0;
+        chunkMask = ((1 << (bitOffsetInStartChunk + 1)) - 1) >>> 0;
       }
-      const maskedChunk = firstChunkValue & mask;
+      const maskedChunk = firstChunkValue & chunkMask;
       if (maskedChunk !== 0) {
         const bitPos = BooleanArray.CHUNK_MASK - Math.clz32(maskedChunk); // Find MSB in the masked part
         return (startChunk << BooleanArray.CHUNK_SHIFT) + bitPos;
