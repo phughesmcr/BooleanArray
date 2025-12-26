@@ -28,6 +28,7 @@ export class BooleanArray {
    * Performs a bitwise AND operation with two BooleanArrays
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
+   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.and} for in-place operation.
    */
   static and(a: BooleanArray, b: BooleanArray): BooleanArray {
     return and(a, b, false);
@@ -37,6 +38,7 @@ export class BooleanArray {
    * Performs a bitwise difference operation with two BooleanArrays
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
+   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.difference} for in-place operation.
    */
   static difference(a: BooleanArray, b: BooleanArray): BooleanArray {
     return difference(a, b, false);
@@ -54,6 +56,7 @@ export class BooleanArray {
    * Performs a bitwise NAND operation with two BooleanArrays
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
+   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.nand} for in-place operation.
    */
   static nand(a: BooleanArray, b: BooleanArray): BooleanArray {
     return nand(a, b, false);
@@ -63,6 +66,7 @@ export class BooleanArray {
    * Performs a bitwise NOR operation with two BooleanArrays
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
+   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.nor} for in-place operation.
    */
   static nor(a: BooleanArray, b: BooleanArray): BooleanArray {
     return nor(a, b, false);
@@ -72,6 +76,7 @@ export class BooleanArray {
    * Performs a bitwise NOT operation with a BooleanArray
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` is not a BooleanArray
+   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.not} for in-place operation.
    */
   static not(a: BooleanArray): BooleanArray {
     return not(a, false);
@@ -81,6 +86,7 @@ export class BooleanArray {
    * Performs a bitwise OR operation with two BooleanArrays
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
+   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.or} for in-place operation.
    */
   static or(a: BooleanArray, b: BooleanArray): BooleanArray {
     return or(a, b, false);
@@ -92,6 +98,7 @@ export class BooleanArray {
    * @param b the second BooleanArray
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
+   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.xor} for in-place operation.
    */
   static xor(a: BooleanArray, b: BooleanArray): BooleanArray {
     return xor(a, b, false);
@@ -103,6 +110,7 @@ export class BooleanArray {
    * @param b the second BooleanArray
    * @returns a new BooleanArray with the result
    * @throws {RangeError} if `a` and `b` have different sizes
+   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.xnor} for in-place operation.
    */
   static xnor(a: BooleanArray, b: BooleanArray): BooleanArray {
     return xnor(a, b, false);
@@ -409,6 +417,7 @@ export class BooleanArray {
   /**
    * Creates a copy of this BooleanArray
    * @returns a new BooleanArray with the same contents
+   * @allocates Returns a new instance.
    */
   clone(): BooleanArray {
     const copy = new BooleanArray(this.size);
@@ -556,6 +565,7 @@ export class BooleanArray {
    * @param indexOrStartIndex the index for single access, or the start index for range access
    * @param count optional number of booleans to retrieve when reading a range
    * @returns a boolean when count is undefined; otherwise an array of booleans
+   * @allocates Range access returns a new array. Use {@link getInto} for zero-allocation.
    */
   get(index: number): boolean;
   get(startIndex: number, count: number): boolean[];
@@ -872,6 +882,68 @@ export class BooleanArray {
   }
 
   /**
+   * Copy truthy indices into a preallocated Uint32Array to avoid allocations.
+   * @param out the destination Uint32Array with length >= expected count
+   * @param startIndex inclusive start index [default = 0]
+   * @param endIndex exclusive end index [default = this.size]
+   * @returns the number of indices written to `out`
+   * @throws {TypeError} if `out` is not a Uint32Array
+   * @throws {RangeError} if indices are out of bounds or invalid
+   */
+  truthyIndicesInto(
+    out: Uint32Array,
+    startIndex: number = 0,
+    endIndex: number = this.size,
+  ): number {
+    if (!(out instanceof Uint32Array)) {
+      throw new TypeError('"out" must be a Uint32Array.');
+    }
+    BooleanArray.assertIsSafeValue(startIndex, this.size);
+    BooleanArray.assertIsSafeValue(endIndex, this.size + 1);
+    if (startIndex > endIndex) {
+      throw new RangeError('"startIndex" must be less than or equal to "endIndex".');
+    }
+    if (startIndex >= endIndex) return 0;
+
+    const actualEndIndex = endIndex > this.size ? this.size : endIndex;
+
+    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
+    const endChunk = (actualEndIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
+    let writeIndex = 0;
+    const outLength = out.length;
+
+    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
+      let chunk = this.buffer[chunkIndex]!;
+      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
+
+      // Mask off bits before startIndex in the first chunk
+      if (chunkIndex === (startIndex >>> BooleanArray.CHUNK_SHIFT)) {
+        const startBitOffset = startIndex & BooleanArray.CHUNK_MASK;
+        chunk &= BooleanArray.ALL_BITS_TRUE << startBitOffset;
+      }
+
+      // Process all set bits in this chunk
+      while (chunk !== 0) {
+        const lsb = chunk & -chunk;
+        const bitPosition = Math.clz32(lsb) ^ BooleanArray.CHUNK_MASK;
+        const absoluteIndex = chunkBaseIndex + bitPosition;
+
+        if (absoluteIndex >= actualEndIndex) return writeIndex;
+
+        if (writeIndex < outLength) {
+          out[writeIndex] = absoluteIndex;
+        }
+        writeIndex++;
+        chunk &= chunk - 1; // Clear the LSB
+      }
+
+      chunkIndex++;
+    }
+
+    return writeIndex;
+  }
+
+  /**
    * Performs an in-place bitwise NOR operation with another BooleanArray
    * @param other the BooleanArray to perform the bitwise NOR operation with
    * @returns the current BooleanArray
@@ -1029,6 +1101,7 @@ export class BooleanArray {
 
   /**
    * @returns a string representation of the array
+   * @allocates Returns a new string.
    */
   toString(): string {
     return this.buffer.toString();
@@ -1056,7 +1129,10 @@ export class BooleanArray {
     return this;
   }
 
-  /** Iterator */
+  /**
+   * Iterator
+   * @allocates Creates a generator object. Use {@link forEach} for zero-allocation iteration.
+   */
   *[Symbol.iterator](): IterableIterator<boolean> {
     const buffer = this.buffer;
     const mask = BooleanArray.CHUNK_MASK;
@@ -1075,7 +1151,10 @@ export class BooleanArray {
     }
   }
 
-  /** Returns an iterable of key, value pairs for every entry in the array */
+  /**
+   * Returns an iterable of key, value pairs for every entry in the array
+   * @allocates Creates a generator object and tuple per iteration. Use {@link forEach} for zero-allocation.
+   */
   *entries(): IterableIterator<[number, boolean]> {
     const buffer = this.buffer;
     const mask = BooleanArray.CHUNK_MASK;
@@ -1094,14 +1173,20 @@ export class BooleanArray {
     }
   }
 
-  /** Returns an iterable of keys in the array */
+  /**
+   * Returns an iterable of keys in the array
+   * @allocates Creates a generator object. Use `for (let i = 0; i < arr.size; i++)` for zero-allocation.
+   */
   *keys(): IterableIterator<number> {
     for (let i = 0; i < this.size; i++) {
       yield i;
     }
   }
 
-  /** Returns an iterable of values in the array */
+  /**
+   * Returns an iterable of values in the array
+   * @allocates Creates a generator object. Use {@link forEach} for zero-allocation iteration.
+   */
   *values(): IterableIterator<boolean> {
     const buffer = this.buffer;
     const mask = BooleanArray.CHUNK_MASK;
@@ -1125,6 +1210,7 @@ export class BooleanArray {
    * @param startIndex the start index to get the indices from [default = 0]
    * @param endIndex the end index to get the indices from [default = this.size]
    * @returns Iterator of indices where bits are set
+   * @allocates Creates a generator object. Use {@link forEachTruthy} or {@link truthyIndicesInto} for zero-allocation.
    */
   *truthyIndices(startIndex: number = 0, endIndex: number = this.size): IterableIterator<number> {
     BooleanArray.assertIsSafeValue(startIndex, this.size);

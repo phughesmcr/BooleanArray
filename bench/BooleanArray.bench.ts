@@ -2309,3 +2309,343 @@ Deno.bench({
     BooleanArray.equals(equalsArrayA, differentSizeArray);
   },
 });
+
+// ============================================================================
+// Zero-Allocation Method Benchmarks
+// ============================================================================
+
+// Setup arrays for zero-allocation benchmarks
+const zeroAllocSparseArray = new BooleanArray(100_000);
+for (let i = 0; i < 100_000; i += 100) {
+  zeroAllocSparseArray.set(i, true);
+}
+
+const zeroAllocDenseArray = new BooleanArray(100_000);
+zeroAllocDenseArray.fill(true);
+
+const zeroAllocMediumArray = new BooleanArray(10_000);
+for (let i = 0; i < 10_000; i += 10) {
+  zeroAllocMediumArray.set(i, true);
+}
+
+// forEachTruthy vs truthyIndices benchmarks
+Deno.bench({
+  name: "forEachTruthy - sparse array (1% set)",
+  group: "forEachTruthy-vs-truthyIndices",
+  baseline: true,
+  fn: () => {
+    zeroAllocSparseArray.forEachTruthy((_index) => {
+      // Just iterate
+    });
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - sparse array (1% set)",
+  group: "forEachTruthy-vs-truthyIndices",
+  fn: () => {
+    for (const _index of zeroAllocSparseArray.truthyIndices()) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "forEachTruthy - dense array (100% set)",
+  group: "forEachTruthy-vs-truthyIndices",
+  fn: () => {
+    zeroAllocDenseArray.forEachTruthy((_index) => {
+      // Just iterate
+    });
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - dense array (100% set)",
+  group: "forEachTruthy-vs-truthyIndices",
+  fn: () => {
+    for (const _index of zeroAllocDenseArray.truthyIndices()) {
+      // Just iterate
+    }
+  },
+});
+
+// forEachTruthy with range
+Deno.bench({
+  name: "forEachTruthy - with range (10K window)",
+  group: "forEachTruthy-range",
+  baseline: true,
+  fn: () => {
+    zeroAllocSparseArray.forEachTruthy(
+      (_index) => {
+        // Just iterate
+      },
+      50_000,
+      60_000,
+    );
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices - with range (10K window)",
+  group: "forEachTruthy-range",
+  fn: () => {
+    for (const _index of zeroAllocSparseArray.truthyIndices(50_000, 60_000)) {
+      // Just iterate
+    }
+  },
+});
+
+// truthyIndicesInto vs truthyIndices benchmarks
+const truthyIndicesOutSmall = new Uint32Array(100);
+const truthyIndicesOutMedium = new Uint32Array(1000);
+const truthyIndicesOutLarge = new Uint32Array(100_000);
+
+Deno.bench({
+  name: "truthyIndicesInto - sparse array (preallocated)",
+  group: "truthyIndicesInto-vs-truthyIndices",
+  baseline: true,
+  fn: () => {
+    zeroAllocSparseArray.truthyIndicesInto(truthyIndicesOutMedium);
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices + spread - sparse array (allocating)",
+  group: "truthyIndicesInto-vs-truthyIndices",
+  fn: () => {
+    [...zeroAllocSparseArray.truthyIndices()];
+  },
+});
+
+Deno.bench({
+  name: "truthyIndicesInto - dense array (preallocated)",
+  group: "truthyIndicesInto-vs-truthyIndices",
+  fn: () => {
+    zeroAllocDenseArray.truthyIndicesInto(truthyIndicesOutLarge);
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices + spread - dense array (allocating)",
+  group: "truthyIndicesInto-vs-truthyIndices",
+  fn: () => {
+    [...zeroAllocDenseArray.truthyIndices()];
+  },
+});
+
+// truthyIndicesInto with range
+Deno.bench({
+  name: "truthyIndicesInto - with range (10K window)",
+  group: "truthyIndicesInto-range",
+  baseline: true,
+  fn: () => {
+    zeroAllocSparseArray.truthyIndicesInto(truthyIndicesOutSmall, 50_000, 60_000);
+  },
+});
+
+Deno.bench({
+  name: "truthyIndices + spread - with range (10K window)",
+  group: "truthyIndicesInto-range",
+  fn: () => {
+    [...zeroAllocSparseArray.truthyIndices(50_000, 60_000)];
+  },
+});
+
+// getInto vs get benchmarks
+const getIntoOutSmall = new Array<boolean>(100);
+const getIntoOutMedium = new Array<boolean>(1000);
+const getIntoOutLarge = new Array<boolean>(10_000);
+
+Deno.bench({
+  name: "getInto - small range (100 bits, preallocated)",
+  group: "getInto-vs-get",
+  baseline: true,
+  fn: () => {
+    zeroAllocMediumArray.getInto(0, 100, getIntoOutSmall);
+  },
+});
+
+Deno.bench({
+  name: "get - small range (100 bits, allocating)",
+  group: "getInto-vs-get",
+  fn: () => {
+    zeroAllocMediumArray.get(0, 100);
+  },
+});
+
+Deno.bench({
+  name: "getInto - medium range (1000 bits, preallocated)",
+  group: "getInto-vs-get",
+  fn: () => {
+    zeroAllocMediumArray.getInto(0, 1000, getIntoOutMedium);
+  },
+});
+
+Deno.bench({
+  name: "get - medium range (1000 bits, allocating)",
+  group: "getInto-vs-get",
+  fn: () => {
+    zeroAllocMediumArray.get(0, 1000);
+  },
+});
+
+Deno.bench({
+  name: "getInto - large range (10000 bits, preallocated)",
+  group: "getInto-vs-get",
+  fn: () => {
+    zeroAllocMediumArray.getInto(0, 10_000, getIntoOutLarge);
+  },
+});
+
+Deno.bench({
+  name: "get - large range (10000 bits, allocating)",
+  group: "getInto-vs-get",
+  fn: () => {
+    zeroAllocMediumArray.get(0, 10_000);
+  },
+});
+
+// getInto crossing chunk boundaries
+Deno.bench({
+  name: "getInto - cross chunk boundary (preallocated)",
+  group: "getInto-chunk-boundary",
+  baseline: true,
+  fn: () => {
+    zeroAllocMediumArray.getInto(30, 100, getIntoOutSmall);
+  },
+});
+
+Deno.bench({
+  name: "get - cross chunk boundary (allocating)",
+  group: "getInto-chunk-boundary",
+  fn: () => {
+    zeroAllocMediumArray.get(30, 100);
+  },
+});
+
+// forEach vs Symbol.iterator (direct comparison for zero-alloc)
+Deno.bench({
+  name: "forEach - zero-allocation iteration",
+  group: "forEach-vs-iterator",
+  baseline: true,
+  fn: () => {
+    zeroAllocMediumArray.forEach((_value, _index) => {
+      // Just iterate
+    });
+  },
+});
+
+Deno.bench({
+  name: "Symbol.iterator - allocating iteration",
+  group: "forEach-vs-iterator",
+  fn: () => {
+    for (const _value of zeroAllocMediumArray) {
+      // Just iterate
+    }
+  },
+});
+
+Deno.bench({
+  name: "entries() - allocating iteration with tuples",
+  group: "forEach-vs-iterator",
+  fn: () => {
+    for (const [_index, _value] of zeroAllocMediumArray.entries()) {
+      // Just iterate
+    }
+  },
+});
+
+// fromUint32Array benchmarks
+const uint32SmallBuffer = new Uint32Array(1);
+uint32SmallBuffer[0] = 0xFFFFFFFF;
+
+const uint32MediumBuffer = new Uint32Array(32);
+for (let i = 0; i < 32; i++) {
+  uint32MediumBuffer[i] = 0xAAAAAAAA; // Alternating bits
+}
+
+const uint32LargeBuffer = new Uint32Array(31250); // ~1M bits
+for (let i = 0; i < 31250; i++) {
+  uint32LargeBuffer[i] = 0xFFFFFFFF;
+}
+
+Deno.bench({
+  name: "fromUint32Array - small (32 bits)",
+  group: "fromUint32Array",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromUint32Array(32, uint32SmallBuffer);
+  },
+});
+
+Deno.bench({
+  name: "fromUint32Array - medium (1024 bits)",
+  group: "fromUint32Array",
+  fn: () => {
+    BooleanArray.fromUint32Array(1024, uint32MediumBuffer);
+  },
+});
+
+Deno.bench({
+  name: "fromUint32Array - large (1M bits)",
+  group: "fromUint32Array",
+  fn: () => {
+    BooleanArray.fromUint32Array(1_000_000, uint32LargeBuffer);
+  },
+});
+
+// fromUint32Array vs fromArray comparison
+const fromArrayIndices1k = Array.from({ length: 500 }, (_, i) => i * 2);
+
+Deno.bench({
+  name: "fromUint32Array - 1K bits (buffer copy)",
+  group: "fromUint32Array-vs-fromArray",
+  baseline: true,
+  fn: () => {
+    BooleanArray.fromUint32Array(1024, uint32MediumBuffer);
+  },
+});
+
+Deno.bench({
+  name: "fromArray - 1K bits (index iteration)",
+  group: "fromUint32Array-vs-fromArray",
+  fn: () => {
+    BooleanArray.fromArray(1024, fromArrayIndices1k);
+  },
+});
+
+// toString benchmarks
+const toStringSmallArray = new BooleanArray(32);
+toStringSmallArray.fill(true);
+
+const toStringMediumArray = new BooleanArray(1024);
+toStringMediumArray.fill(true);
+
+const toStringLargeArray = new BooleanArray(10_000);
+toStringLargeArray.fill(true);
+
+Deno.bench({
+  name: "toString - small array (32 bits)",
+  group: "toString",
+  baseline: true,
+  fn: () => {
+    toStringSmallArray.toString();
+  },
+});
+
+Deno.bench({
+  name: "toString - medium array (1024 bits)",
+  group: "toString",
+  fn: () => {
+    toStringMediumArray.toString();
+  },
+});
+
+Deno.bench({
+  name: "toString - large array (10K bits)",
+  group: "toString",
+  fn: () => {
+    toStringLargeArray.toString();
+  },
+});

@@ -1591,3 +1591,165 @@ Deno.test("BooleanArray - fromArray Boolean Type Guard", async (t) => {
     assertEquals(arr.get(2), true);
   });
 });
+
+Deno.test("BooleanArray - truthyIndicesInto", async (t) => {
+  await t.step("should copy truthy indices into preallocated Uint32Array", () => {
+    const arr = BooleanArray.fromArray(100, [5, 15, 32, 63, 95]);
+    const out = new Uint32Array(10);
+    const count = arr.truthyIndicesInto(out);
+
+    assertEquals(count, 5);
+    assertEquals(out[0], 5);
+    assertEquals(out[1], 15);
+    assertEquals(out[2], 32);
+    assertEquals(out[3], 63);
+    assertEquals(out[4], 95);
+  });
+
+  await t.step("should respect startIndex and endIndex", () => {
+    const arr = BooleanArray.fromArray(100, [5, 15, 25, 35, 45]);
+    const out = new Uint32Array(10);
+    const count = arr.truthyIndicesInto(out, 10, 40);
+
+    assertEquals(count, 3);
+    assertEquals(out[0], 15);
+    assertEquals(out[1], 25);
+    assertEquals(out[2], 35);
+  });
+
+  await t.step("should return 0 for empty ranges", () => {
+    const arr = BooleanArray.fromArray(50, [10, 20, 30]);
+    const out = new Uint32Array(10);
+    const count = arr.truthyIndicesInto(out, 25, 25);
+
+    assertEquals(count, 0);
+  });
+
+  await t.step("should return 0 for array with no truthy bits in range", () => {
+    const arr = BooleanArray.fromArray(100, [5, 95]);
+    const out = new Uint32Array(10);
+    const count = arr.truthyIndicesInto(out, 10, 90);
+
+    assertEquals(count, 0);
+  });
+
+  await t.step("should handle chunk boundary crossings", () => {
+    const arr = BooleanArray.fromArray(100, [30, 31, 32, 33, 64, 65]);
+    const out = new Uint32Array(10);
+    const count = arr.truthyIndicesInto(out, 30, 66);
+
+    assertEquals(count, 6);
+    assertEquals(out[0], 30);
+    assertEquals(out[1], 31);
+    assertEquals(out[2], 32);
+    assertEquals(out[3], 33);
+    assertEquals(out[4], 64);
+    assertEquals(out[5], 65);
+  });
+
+  await t.step("should handle last-chunk partial sizes", () => {
+    const arr = BooleanArray.fromArray(33, [0, 31, 32]);
+    const out = new Uint32Array(5);
+    const count = arr.truthyIndicesInto(out);
+
+    assertEquals(count, 3);
+    assertEquals(out[0], 0);
+    assertEquals(out[1], 31);
+    assertEquals(out[2], 32);
+  });
+
+  await t.step("should write beyond buffer capacity and return total count", () => {
+    const arr = BooleanArray.fromArray(100, [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]);
+    const out = new Uint32Array(3); // Smaller than needed
+    const count = arr.truthyIndicesInto(out);
+
+    assertEquals(count, 10); // Returns total count found
+    assertEquals(out[0], 5); // First 3 written
+    assertEquals(out[1], 15);
+    assertEquals(out[2], 25);
+  });
+
+  await t.step("should validate out parameter type", () => {
+    const arr = new BooleanArray(10);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => arr.truthyIndicesInto(null), TypeError);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => arr.truthyIndicesInto([]), TypeError);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => arr.truthyIndicesInto(new Array(10)), TypeError);
+  });
+
+  await t.step("should validate indices", () => {
+    const arr = new BooleanArray(100);
+    const out = new Uint32Array(10);
+
+    // Negative startIndex
+    assertThrows(() => arr.truthyIndicesInto(out, -1), RangeError);
+
+    // Float indices
+    assertThrows(() => arr.truthyIndicesInto(out, 1.5), TypeError);
+    assertThrows(() => arr.truthyIndicesInto(out, 0, 10.5), TypeError);
+
+    // startIndex > endIndex
+    assertThrows(() => arr.truthyIndicesInto(out, 50, 20), RangeError);
+
+    // Out of bounds
+    assertThrows(() => arr.truthyIndicesInto(out, 0, 101), RangeError);
+  });
+
+  await t.step("should match truthyIndices generator output", () => {
+    const arr = BooleanArray.fromArray(100, [0, 10, 31, 32, 50, 63, 64, 99]);
+    const generatorResult = [...arr.truthyIndices()];
+    const out = new Uint32Array(generatorResult.length);
+    const count = arr.truthyIndicesInto(out);
+
+    assertEquals(count, generatorResult.length);
+    for (let i = 0; i < count; i++) {
+      assertEquals(out[i], generatorResult[i]);
+    }
+  });
+
+  await t.step("should match truthyIndices generator output with range", () => {
+    const arr = BooleanArray.fromArray(100, [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]);
+    const generatorResult = [...arr.truthyIndices(20, 80)];
+    const out = new Uint32Array(10);
+    const count = arr.truthyIndicesInto(out, 20, 80);
+
+    assertEquals(count, generatorResult.length);
+    for (let i = 0; i < count; i++) {
+      assertEquals(out[i], generatorResult[i]);
+    }
+  });
+
+  await t.step("should handle dense pattern", () => {
+    const arr = new BooleanArray(100);
+    arr.set(20, 30, true); // 30 consecutive bits
+    const out = new Uint32Array(50);
+    const count = arr.truthyIndicesInto(out);
+
+    assertEquals(count, 30);
+    for (let i = 0; i < 30; i++) {
+      assertEquals(out[i], 20 + i);
+    }
+  });
+
+  await t.step("should handle all-true array", () => {
+    const arr = new BooleanArray(64);
+    arr.fill(true);
+    const out = new Uint32Array(64);
+    const count = arr.truthyIndicesInto(out);
+
+    assertEquals(count, 64);
+    for (let i = 0; i < 64; i++) {
+      assertEquals(out[i], i);
+    }
+  });
+
+  await t.step("should handle all-false array", () => {
+    const arr = new BooleanArray(64);
+    const out = new Uint32Array(10);
+    const count = arr.truthyIndicesInto(out);
+
+    assertEquals(count, 0);
+  });
+});
