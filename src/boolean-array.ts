@@ -1,5 +1,5 @@
 /**
- * @description A boolean array backed by a Uint32Array.
+ * @description A fast boolean array backed by a Uint32Array.
  * @copyright   2026 the BooleanArray authors. All rights reserved.
  * @license     MIT
  * @module      BooleanArray
@@ -390,10 +390,35 @@ export class BooleanArray {
 
   /**
    * @returns the number of 32-bit chunks in the underlying buffer
-   * Note: for the total number of booleans use {@link BooleanArray.size}
+   * @note For the total number of booleans use {@link BooleanArray.size}
    */
   get length(): number {
     return this.chunkCount;
+  }
+
+  /**
+   * Assert that a value is a valid index for this array
+   * @param index the index value to validate
+   * @returns the validated index value
+   * @throws {TypeError} if `index` is not a safe integer
+   * @throws {RangeError} if `index` is out of bounds
+   */
+  assertIsSafeIndex(index: number): number {
+    if (!Number.isSafeInteger(index)) {
+      throw new TypeError('"index" must be a safe integer.');
+    } else if (index < 0 || index >= this.size) {
+      throw new RangeError(`Index ${index} is out of bounds for array size ${this.size}.`);
+    }
+    return index;
+  }
+
+  /**
+   * Check if an index value is valid for this array
+   * @param index the index value to validate
+   * @returns `true` if the index is valid, `false` otherwise
+   */
+  isSafeIndex(index: number): boolean {
+    return Number.isSafeInteger(index) && index >= 0 && index < this.size;
   }
 
   /**
@@ -569,10 +594,8 @@ export class BooleanArray {
   get(startIndex: number, count: number): boolean[];
   get(indexOrStartIndex: number, count?: number): boolean | boolean[] {
     if (count === undefined) {
-      // Single bit access - add bounds checking
-      if (BooleanArray.assertIsSafeValue(indexOrStartIndex) >= this.size) {
-        throw new RangeError(`Index ${indexOrStartIndex} is out of bounds for array size ${this.size}.`);
-      }
+      // Single bit access
+      this.assertIsSafeIndex(indexOrStartIndex);
       return this.#getBit(indexOrStartIndex);
     } else {
       // Range access - bounds checking is done in #getRange
@@ -1093,10 +1116,8 @@ export class BooleanArray {
   set(startIndex: number, count: number, value: boolean): this;
   set(indexOrStartIndex: number, valueOrCount: boolean | number, value?: boolean): this {
     if (value === undefined) {
-      // Single bit setting - add bounds checking
-      if (BooleanArray.assertIsSafeValue(indexOrStartIndex) >= this.size) {
-        throw new RangeError(`Index ${indexOrStartIndex} is out of bounds for array size ${this.size}.`);
-      }
+      // Single bit setting
+      this.assertIsSafeIndex(indexOrStartIndex);
       return this.#setBit(indexOrStartIndex, valueOrCount as boolean);
     } else {
       // Range setting - bounds checking is done in #setRange
@@ -1110,9 +1131,7 @@ export class BooleanArray {
    * @returns the current BooleanArray for chaining
    */
   toggle(index: number): this {
-    if (BooleanArray.assertIsSafeValue(index) >= this.size) {
-      throw new RangeError(`Index ${index} is out of bounds for array size ${this.size}.`);
-    }
+    this.assertIsSafeIndex(index);
     const chunk = index >>> BooleanArray.CHUNK_SHIFT;
     const mask = 1 << (index & BooleanArray.CHUNK_MASK);
     this.buffer[chunk]! ^= mask;
