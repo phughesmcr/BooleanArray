@@ -162,7 +162,7 @@ export class BooleanArray {
     } else if (value < 0) {
       throw new RangeError('"value" must be greater than or equal to 0.');
     } else if (value > 0xFFFFFFFF) {
-      throw new RangeError(`"value" must be less than 0xFFFFFFFF.`);
+      throw new RangeError(`"value" must be less than or equal to 0xFFFFFFFF.`);
     }
     return value;
   }
@@ -380,7 +380,7 @@ export class BooleanArray {
     // Pre-calculate values
     this.size = size;
     this.chunkCount = (size + BooleanArray.CHUNK_MASK) >>> BooleanArray.CHUNK_SHIFT;
-    this.bitsInLastChunk = size % BooleanArray.BITS_PER_INT;
+    this.bitsInLastChunk = size & BooleanArray.CHUNK_MASK;
     this.lastChunkMask = this.bitsInLastChunk === 0
       ? BooleanArray.ALL_BITS_TRUE
       : ((1 << this.bitsInLastChunk) - 1) >>> 0;
@@ -729,21 +729,23 @@ export class BooleanArray {
    * @param fromIndex The array index at which to begin searching backward. If fromIndex is omitted, the search starts at the last index in the array.
    * @returns the index of the last occurrence of the value, or -1 if the value is not present.
    */
-  lastIndexOf(value: boolean, fromIndex: number = this.size): number {
-    let exclusiveBound = fromIndex | 0;
-    if (exclusiveBound < 0) {
-      exclusiveBound = this.size + exclusiveBound;
-    } else if (exclusiveBound > this.size) {
-      exclusiveBound = this.size;
+  lastIndexOf(value: boolean, fromIndex: number = this.size - 1): number {
+    let startIndex = fromIndex | 0;
+
+    // Handle negative fromIndex
+    if (startIndex < 0) {
+      startIndex = this.size + startIndex;
+    } else if (startIndex >= this.size) {
+      startIndex = this.size - 1;
     }
 
-    if (exclusiveBound <= 0) {
-      // When exclusiveBound is 0 or negative, check index 0 specifically
-      return this.#getBit(0) === value ? 0 : -1;
+    // If adjusted index is still negative, no search
+    if (startIndex < 0) {
+      return -1;
     }
 
-    // We search in the range [0, searchUpToBitIndex_inclusive]
-    const searchUpToBitIndex_inclusive = exclusiveBound - 1;
+    // We search in the range [0, startIndex] inclusive
+    const searchUpToBitIndex_inclusive = startIndex;
 
     const buffer = this.buffer;
     const shift = BooleanArray.CHUNK_SHIFT;
@@ -809,6 +811,19 @@ export class BooleanArray {
       if (buffer[i] !== 0) return false;
     }
     return true;
+  }
+
+  /**
+   * Check if all bits in the array are set
+   * @returns `true` if all bits are set, `false` otherwise
+   */
+  isFull(): boolean {
+    const buffer = this.buffer;
+    const lastIndex = this.chunkCount - 1;
+    for (let i = 0; i < lastIndex; i++) {
+      if (buffer[i] !== BooleanArray.ALL_BITS_TRUE) return false;
+    }
+    return buffer[lastIndex] === this.lastChunkMask;
   }
 
   /**
@@ -885,9 +900,12 @@ export class BooleanArray {
    * @param out the destination Uint32Array with length >= expected count
    * @param startIndex inclusive start index [default = 0]
    * @param endIndex exclusive end index [default = this.size]
-   * @returns the number of indices written to `out`
+   * @returns the total number of truthy indices found (may exceed out.length)
    * @throws {TypeError} if `out` is not a Uint32Array
    * @throws {RangeError} if indices are out of bounds or invalid
+   * @note If the return value exceeds `out.length`, only the first `out.length`
+   *       indices were written. The return value can be used to allocate a
+   *       correctly-sized buffer and retry.
    */
   truthyIndicesInto(
     out: Uint32Array,
@@ -1212,13 +1230,18 @@ export class BooleanArray {
    * @param startIndex the start index to get the indices from [default = 0]
    * @param endIndex the end index to get the indices from [default = this.size]
    * @returns Iterator of indices where bits are set
+   * @throws {TypeError} if `startIndex` or `endIndex` is not a safe integer
+   * @throws {RangeError} if `startIndex > endIndex` or `endIndex > this.size`
    * @allocates Creates a generator object. Use {@link forEachTruthy} or {@link truthyIndicesInto} for zero-allocation.
    */
   *truthyIndices(startIndex: number = 0, endIndex: number = this.size): IterableIterator<number> {
-    if (BooleanArray.assertIsSafeValue(endIndex) > this.size) {
+    if (BooleanArray.assertIsSafeValue(startIndex) > BooleanArray.assertIsSafeValue(endIndex)) {
+      throw new RangeError('"startIndex" must be less than or equal to "endIndex".');
+    }
+    if (endIndex > this.size) {
       throw new RangeError(`"endIndex" (${endIndex}) exceeds array size (${this.size}).`);
     }
-    if (BooleanArray.assertIsSafeValue(startIndex) >= endIndex) return;
+    if (startIndex >= endIndex) return;
 
     const actualEndIndex = endIndex;
 

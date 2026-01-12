@@ -368,7 +368,7 @@ Deno.test("BooleanArray - Search and Population Operations", async (t) => {
     assertEquals(array.indexOf(true), 31);
     assertEquals(array.indexOf(true, 32), 32);
     assertEquals(array.lastIndexOf(true), 33);
-    assertEquals(array.lastIndexOf(true, 32), 31);
+    assertEquals(array.lastIndexOf(true, 32), 32); // search from index 32, finds at 32
   });
 
   await t.step("should support size-equal and negative fromIndex semantics", () => {
@@ -381,7 +381,7 @@ Deno.test("BooleanArray - Search and Population Operations", async (t) => {
     // fromIndex == size
     assertEquals(array.indexOf(true, size), -1);
     assertEquals(array.indexOf(false, size), -1);
-    assertEquals(array.lastIndexOf(true, size), 9);
+    assertEquals(array.lastIndexOf(true, size), 9); // clamps to size - 1 = 9
 
     // negative fromIndex for indexOf (forward search)
     // -1 => start at size - 1 = 9
@@ -391,20 +391,22 @@ Deno.test("BooleanArray - Search and Population Operations", async (t) => {
     // very negative clamps to start at 0
     assertEquals(array.indexOf(true, -9999), 0);
 
-    // negative fromIndex for lastIndexOf (backward search with exclusive bound)
-    // -1 => exclusiveBound = size - 1 => inclusiveIndex = size - 2 = 8
-    assertEquals(array.lastIndexOf(true, -1), 5);
-    // -10 => exclusiveBound = 0 => check index 0 specifically
+    // negative fromIndex for lastIndexOf (backward search, standard Array behavior)
+    // -1 => size + (-1) = 9, search from index 9 backwards
+    assertEquals(array.lastIndexOf(true, -1), 9);
+    // -2 => size + (-2) = 8, search from index 8 backwards, find at 5
+    assertEquals(array.lastIndexOf(true, -2), 5);
+    // -10 => size + (-10) = 0, search from index 0 backwards, find at 0
     assertEquals(array.lastIndexOf(true, -10), 0);
-    // very negative => exclusiveBound < 0 => behaves like -10 case (checks index 0)
-    assertEquals(array.lastIndexOf(true, -9999), 0);
+    // very negative => size + (-9999) < 0, return -1
+    assertEquals(array.lastIndexOf(true, -9999), -1);
   });
 
-  await t.step("should respect lastIndexOf with exclusive bound 0", () => {
+  await t.step("should respect lastIndexOf starting at index 0", () => {
     const arr = BooleanArray.fromArray(10, [0, 5, 9]);
-    // fromIndex = 0 => exclusive bound 0, implementation checks index 0 specifically
-    assertEquals(arr.lastIndexOf(true, 0), 0);
-    assertEquals(arr.lastIndexOf(false, 0), -1);
+    // fromIndex = 0 => search from index 0 backwards (only checks index 0)
+    assertEquals(arr.lastIndexOf(true, 0), 0); // index 0 is true
+    assertEquals(arr.lastIndexOf(false, 0), -1); // index 0 is true, not false
   });
 });
 
@@ -1400,10 +1402,10 @@ Deno.test("BooleanArray - Search for False", async (t) => {
 
   await t.step("lastIndexOf(false) on all-zero array", () => {
     const arr = new BooleanArray(64);
-    assertEquals(arr.lastIndexOf(false), 63);
-    assertEquals(arr.lastIndexOf(false, 64), 63);
-    assertEquals(arr.lastIndexOf(false, 50), 49);
-    assertEquals(arr.lastIndexOf(false, 0), 0);
+    assertEquals(arr.lastIndexOf(false), 63); // default fromIndex = 63
+    assertEquals(arr.lastIndexOf(false, 64), 63); // clamps to 63
+    assertEquals(arr.lastIndexOf(false, 50), 50); // search from index 50, finds at 50
+    assertEquals(arr.lastIndexOf(false, 0), 0); // search from index 0, finds at 0
   });
 
   await t.step("lastIndexOf(false) with negative fromIndex", () => {
@@ -1411,16 +1413,16 @@ Deno.test("BooleanArray - Search for False", async (t) => {
     arr.fill(true);
     arr.set(2, false);
 
-    assertEquals(arr.lastIndexOf(false, -1), 2); // Search up to 10 - 1 = 9 (exclusive), so up to index 8
-    assertEquals(arr.lastIndexOf(false, -7), 2); // Search up to 10 - 7 = 3 (exclusive), so up to index 2
-    assertEquals(arr.lastIndexOf(false, -8), -1); // Search up to 10 - 8 = 2 (exclusive), so up to index 1
+    assertEquals(arr.lastIndexOf(false, -1), 2); // 10 + (-1) = 9, search from 9, finds at 2
+    assertEquals(arr.lastIndexOf(false, -7), 2); // 10 + (-7) = 3, search from 3, finds at 2
+    assertEquals(arr.lastIndexOf(false, -8), 2); // 10 + (-8) = 2, search from 2, finds at 2
   });
 
   await t.step("lastIndexOf(false) at last-chunk boundaries", () => {
     const arr = BooleanArray.fromArray(33, [1, 31]);
-    assertEquals(arr.lastIndexOf(false), 32);
-    assertEquals(arr.lastIndexOf(false, 33), 32);
-    assertEquals(arr.lastIndexOf(false, 32), 30);
+    assertEquals(arr.lastIndexOf(false), 32); // search from 32, finds at 32
+    assertEquals(arr.lastIndexOf(false, 33), 32); // clamps to 32, finds at 32
+    assertEquals(arr.lastIndexOf(false, 32), 32); // search from 32, finds at 32
   });
 
   await t.step("lastIndexOf(false) with last-chunk masking", () => {
@@ -1972,5 +1974,131 @@ Deno.test("BooleanArray - Additional Validation Edge Cases", async (t) => {
       () => BooleanArray.fromObjects(10, "id", [{ id: Infinity }]),
       TypeError,
     );
+  });
+});
+
+Deno.test("BooleanArray - isFull", async (t) => {
+  await t.step("should return false for empty array", () => {
+    const arr = new BooleanArray(64);
+    assertEquals(arr.isFull(), false);
+  });
+
+  await t.step("should return true for filled array", () => {
+    const arr = new BooleanArray(64);
+    arr.fill(true);
+    assertEquals(arr.isFull(), true);
+  });
+
+  await t.step("should return false for partially filled array", () => {
+    const arr = new BooleanArray(64);
+    arr.fill(true);
+    arr.set(0, false);
+    assertEquals(arr.isFull(), false);
+  });
+
+  await t.step("should handle non-32-aligned sizes correctly", () => {
+    // Size 33: last chunk has only 1 bit used
+    const arr33 = new BooleanArray(33);
+    arr33.fill(true);
+    assertEquals(arr33.isFull(), true);
+
+    arr33.set(32, false);
+    assertEquals(arr33.isFull(), false);
+
+    // Size 1: single bit
+    const arr1 = new BooleanArray(1);
+    assertEquals(arr1.isFull(), false);
+    arr1.set(0, true);
+    assertEquals(arr1.isFull(), true);
+
+    // Size 31: almost full chunk
+    const arr31 = new BooleanArray(31);
+    arr31.fill(true);
+    assertEquals(arr31.isFull(), true);
+  });
+
+  await t.step("should handle chunk boundary correctly", () => {
+    const arr = new BooleanArray(32);
+    arr.fill(true);
+    assertEquals(arr.isFull(), true);
+
+    arr.set(31, false);
+    assertEquals(arr.isFull(), false);
+
+    arr.set(31, true);
+    arr.set(0, false);
+    assertEquals(arr.isFull(), false);
+  });
+
+  await t.step("should detect false bit in middle chunk of multi-chunk array", () => {
+    // Size 100 = 4 chunks (0-31, 32-63, 64-95, 96-99)
+    const arr = new BooleanArray(100);
+    arr.fill(true);
+    assertEquals(arr.isFull(), true);
+
+    // Clear a bit in the middle chunk (chunk 1: bits 32-63)
+    arr.set(50, false);
+    assertEquals(arr.isFull(), false);
+
+    // Restore and clear in chunk 2 (bits 64-95)
+    arr.set(50, true);
+    arr.set(80, false);
+    assertEquals(arr.isFull(), false);
+  });
+
+  await t.step("should be complementary to isEmpty for extreme states", () => {
+    const arr = new BooleanArray(100);
+
+    // Empty array
+    assertEquals(arr.isEmpty(), true);
+    assertEquals(arr.isFull(), false);
+
+    // Full array
+    arr.fill(true);
+    assertEquals(arr.isEmpty(), false);
+    assertEquals(arr.isFull(), true);
+
+    // Partial array
+    arr.set(50, false);
+    assertEquals(arr.isEmpty(), false);
+    assertEquals(arr.isFull(), false);
+  });
+});
+
+Deno.test("BooleanArray - truthyIndices startIndex > endIndex validation", async (t) => {
+  await t.step("should throw RangeError when startIndex > endIndex", () => {
+    const arr = new BooleanArray(100);
+    arr.set(50, true);
+
+    assertThrows(
+      () => [...arr.truthyIndices(50, 20)],
+      RangeError,
+      '"startIndex" must be less than or equal to "endIndex".',
+    );
+
+    assertThrows(
+      () => [...arr.truthyIndices(100, 0)],
+      RangeError,
+      '"startIndex" must be less than or equal to "endIndex".',
+    );
+  });
+
+  await t.step("should still allow startIndex === endIndex (empty range)", () => {
+    const arr = new BooleanArray(100);
+    arr.set(50, true);
+
+    // startIndex === endIndex should return empty, not throw
+    assertEquals([...arr.truthyIndices(30, 30)], []);
+    assertEquals([...arr.truthyIndices(0, 0)], []);
+    assertEquals([...arr.truthyIndices(100, 100)], []);
+  });
+
+  await t.step("should validate types before checking range", () => {
+    const arr = new BooleanArray(100);
+
+    // Type errors should take precedence
+    assertThrows(() => [...arr.truthyIndices(NaN, 50)], TypeError);
+    assertThrows(() => [...arr.truthyIndices(0, NaN)], TypeError);
+    assertThrows(() => [...arr.truthyIndices(1.5, 50)], TypeError);
   });
 });
