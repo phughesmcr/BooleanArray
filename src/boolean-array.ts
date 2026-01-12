@@ -243,9 +243,10 @@ export class BooleanArray {
    * @returns A new BooleanArray instance
    * @throws {RangeError} If `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
    * @throws {TypeError} If `size` is not a safe value
-   * @throws {RangeError} If `arr.length` does not match the expected buffer length `size`
+   * @throws {RangeError} If `arr.length` exceeds the expected buffer length (smaller arrays are zero-padded)
    * @throws {TypeError} If `arr` is not an ArrayLike<number>
    * @see {@link BooleanArray.assertIsSafeValue}
+   * @note Arrays smaller than the expected buffer length are automatically zero-padded
    */
   static fromUint32Array(size: number, arr: ArrayLike<number>): BooleanArray {
     BooleanArray.assertIsSafeValue(size);
@@ -259,7 +260,7 @@ export class BooleanArray {
     const expectedBufferLength = BooleanArray.getChunkCount(size);
     if (arr.length > expectedBufferLength) {
       throw new RangeError(
-        `Input array length (${arr.length}) does not match expected buffer length (${expectedBufferLength}) for a BooleanArray of size ${size}.`,
+        `Input array length (${arr.length}) exceeds expected buffer length (${expectedBufferLength}) for a BooleanArray of size ${size}. Smaller arrays are zero-padded, but larger arrays would lose data.`,
       );
     }
 

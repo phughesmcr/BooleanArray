@@ -768,7 +768,7 @@ Deno.test("BooleanArray - Static Factory Methods", async (t) => {
     assertThrows(
       () => BooleanArray.fromUint32Array(2, tooLargeBuffer), // size 2 expects buffer of length 1
       RangeError,
-      "Input array length (4) does not match expected buffer length (1) for a BooleanArray of size 2.",
+      "Input array length (4) exceeds expected buffer length (1) for a BooleanArray of size 2. Smaller arrays are zero-padded, but larger arrays would lose data.",
     );
     // deno-lint-ignore no-explicit-any
     assertThrows(() => BooleanArray.fromUint32Array(32, null as any), TypeError, '"arr" must be an ArrayLike<number>');
