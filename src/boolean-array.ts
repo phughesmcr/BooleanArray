@@ -350,6 +350,27 @@ export class BooleanArray {
     return boolIndex & BooleanArray.CHUNK_MASK;
   }
 
+  /**
+   * Count the number of set bits in a 32-bit integer (population count)
+   * @param value the 32-bit integer to count bits in
+   * @returns the number of set bits
+   */
+  static popcount(value: number): number {
+    value = value - ((value >>> 1) & 0x55555555);
+    value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);
+    value = (value + (value >>> 4)) & 0x0f0f0f0f;
+    return (value * 0x01010101) >>> 24;
+  }
+
+  /**
+   * Get the bit position of the lowest set bit in a 32-bit integer
+   * @param value the 32-bit integer (must be non-zero)
+   * @returns the bit position (0-31) of the lowest set bit
+   */
+  static getLSBPosition(value: number): number {
+    return Math.clz32(value & -value) ^ BooleanArray.CHUNK_MASK;
+  }
+
   /** The underlying Uint32Array */
   readonly buffer: Uint32Array;
 
@@ -419,6 +440,123 @@ export class BooleanArray {
    */
   isSafeIndex(index: number): boolean {
     return Number.isSafeInteger(index) && index >= 0 && index < this.size;
+  }
+
+  /**
+   * Assert that a range is valid for iteration
+   * @param startIndex the start index
+   * @param endIndex the end index
+   * @throws {RangeError} if startIndex > endIndex or endIndex > this.size
+   */
+  #assertValidRange(startIndex: number, endIndex: number): void {
+    if (BooleanArray.assertIsSafeValue(startIndex) > BooleanArray.assertIsSafeValue(endIndex)) {
+      throw new RangeError('"startIndex" must be less than or equal to "endIndex".');
+    }
+    if (endIndex > this.size) {
+      throw new RangeError(`"endIndex" (${endIndex}) exceeds array size (${this.size}).`);
+    }
+  }
+
+  /**
+   * Get chunk value, optionally inverted with proper last-chunk masking
+   * @param chunkIndex the chunk index
+   * @param invert whether to invert the chunk (for finding falsy bits)
+   * @returns the chunk value
+   */
+  #getChunkValue(chunkIndex: number, invert: boolean): number {
+    let chunk = this.buffer[chunkIndex]!;
+    if (invert) {
+      chunk = ~chunk;
+      // Mask off unused bits in the last chunk to avoid false positives
+      if (chunkIndex === this.chunkCount - 1 && this.bitsInLastChunk > 0) {
+        chunk &= this.lastChunkMask;
+      }
+    }
+    return chunk;
+  }
+
+  /**
+   * Core iteration over set bit indices with a callback
+   * @param callback function invoked with (index, thisArg) for each matching bit
+   * @param startIndex inclusive start index
+   * @param endIndex exclusive end index
+   * @param invert if true, iterate over unset (false) bits instead
+   */
+  #forEachBitIndex(
+    callback: (index: number, thisArg?: BooleanArray) => void,
+    startIndex: number,
+    endIndex: number,
+    invert: boolean,
+  ): void {
+    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
+    const endChunk = (endIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
+    const startChunk = startIndex >>> BooleanArray.CHUNK_SHIFT;
+
+    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
+      let chunk = this.#getChunkValue(chunkIndex, invert);
+      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
+
+      // Mask off bits before startIndex in the first chunk
+      if (chunkIndex === startChunk) {
+        chunk &= BooleanArray.ALL_BITS_TRUE << (startIndex & BooleanArray.CHUNK_MASK);
+      }
+
+      // Process all set bits in this chunk
+      while (chunk !== 0) {
+        const absoluteIndex = chunkBaseIndex + BooleanArray.getLSBPosition(chunk);
+        if (absoluteIndex >= endIndex) return;
+        callback(absoluteIndex, this);
+        chunk &= chunk - 1; // Clear the LSB
+      }
+
+      chunkIndex++;
+    }
+  }
+
+  /**
+   * Core collection of set bit indices into a preallocated array
+   * @param out the destination Uint32Array
+   * @param startIndex inclusive start index
+   * @param endIndex exclusive end index
+   * @param invert if true, collect unset (false) bit indices instead
+   * @returns the total number of indices found (may exceed out.length)
+   */
+  #bitIndicesInto(
+    out: Uint32Array,
+    startIndex: number,
+    endIndex: number,
+    invert: boolean,
+  ): number {
+    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
+    const endChunk = (endIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
+    const startChunk = startIndex >>> BooleanArray.CHUNK_SHIFT;
+    const outLength = out.length;
+    let writeIndex = 0;
+
+    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
+      let chunk = this.#getChunkValue(chunkIndex, invert);
+      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
+
+      // Mask off bits before startIndex in the first chunk
+      if (chunkIndex === startChunk) {
+        chunk &= BooleanArray.ALL_BITS_TRUE << (startIndex & BooleanArray.CHUNK_MASK);
+      }
+
+      // Process all set bits in this chunk
+      while (chunk !== 0) {
+        const absoluteIndex = chunkBaseIndex + BooleanArray.getLSBPosition(chunk);
+        if (absoluteIndex >= endIndex) return writeIndex;
+        if (writeIndex < outLength) {
+          out[writeIndex] = absoluteIndex;
+        }
+        writeIndex++;
+        chunk &= chunk - 1; // Clear the LSB
+      }
+
+      chunkIndex++;
+    }
+
+    return writeIndex;
   }
 
   /**
@@ -765,19 +903,11 @@ export class BooleanArray {
 
     // Count all full chunks
     for (let i = 0; i < lastIndex; i++) {
-      let value = buffer[i]!;
-      value = value - ((value >>> 1) & 0x55555555);
-      value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);
-      value = (value + (value >>> 4)) & 0x0f0f0f0f;
-      count += (value * 0x01010101) >>> 24;
+      count += BooleanArray.popcount(buffer[i]!);
     }
 
     // Handle last chunk with pre-calculated mask
-    let value = buffer[lastIndex]! & this.lastChunkMask;
-    value = value - ((value >>> 1) & 0x55555555);
-    value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);
-    value = (value + (value >>> 4)) & 0x0f0f0f0f;
-    count += (value * 0x01010101) >>> 24;
+    count += BooleanArray.popcount(buffer[lastIndex]! & this.lastChunkMask);
 
     return count;
   }
@@ -993,42 +1123,9 @@ export class BooleanArray {
     if (typeof callback !== "function") {
       throw new TypeError('"callback" must be a function.');
     }
-    if (BooleanArray.assertIsSafeValue(startIndex) > BooleanArray.assertIsSafeValue(endIndex)) {
-      throw new RangeError('"startIndex" must be less than or equal to "endIndex".');
-    }
-    if (endIndex > this.size) {
-      throw new RangeError(`"endIndex" (${endIndex}) exceeds array size (${this.size}).`);
-    }
+    this.#assertValidRange(startIndex, endIndex);
     if (startIndex >= endIndex) return this;
-
-    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
-    const endChunk = (endIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
-
-    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
-      let chunk = this.buffer[chunkIndex]!;
-      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
-
-      // Mask off bits before startIndex in the first chunk
-      if (chunkIndex === (startIndex >>> BooleanArray.CHUNK_SHIFT)) {
-        const startBitOffset = startIndex & BooleanArray.CHUNK_MASK;
-        chunk &= BooleanArray.ALL_BITS_TRUE << startBitOffset;
-      }
-
-      // Process all set bits in this chunk
-      while (chunk !== 0) {
-        const lsb = chunk & -chunk;
-        const bitPosition = Math.clz32(lsb) ^ BooleanArray.CHUNK_MASK;
-        const absoluteIndex = chunkBaseIndex + bitPosition;
-
-        if (absoluteIndex >= endIndex) return this;
-
-        callback(absoluteIndex, this);
-        chunk &= chunk - 1; // Clear the LSB
-      }
-
-      chunkIndex++;
-    }
-
+    this.#forEachBitIndex(callback, startIndex, endIndex, false);
     return this;
   }
 
@@ -1052,48 +1149,9 @@ export class BooleanArray {
     if (!(out instanceof Uint32Array)) {
       throw new TypeError('"out" must be a Uint32Array.');
     }
-    if (BooleanArray.assertIsSafeValue(startIndex) > BooleanArray.assertIsSafeValue(endIndex)) {
-      throw new RangeError('"startIndex" must be less than or equal to "endIndex".');
-    }
-    if (endIndex > this.size) {
-      throw new RangeError(`"endIndex" (${endIndex}) exceeds array size (${this.size}).`);
-    }
+    this.#assertValidRange(startIndex, endIndex);
     if (startIndex >= endIndex) return 0;
-
-    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
-    const endChunk = (endIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
-    let writeIndex = 0;
-    const outLength = out.length;
-
-    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
-      let chunk = this.buffer[chunkIndex]!;
-      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
-
-      // Mask off bits before startIndex in the first chunk
-      if (chunkIndex === (startIndex >>> BooleanArray.CHUNK_SHIFT)) {
-        const startBitOffset = startIndex & BooleanArray.CHUNK_MASK;
-        chunk &= BooleanArray.ALL_BITS_TRUE << startBitOffset;
-      }
-
-      // Process all set bits in this chunk
-      while (chunk !== 0) {
-        const lsb = chunk & -chunk;
-        const bitPosition = Math.clz32(lsb) ^ BooleanArray.CHUNK_MASK;
-        const absoluteIndex = chunkBaseIndex + bitPosition;
-
-        if (absoluteIndex >= endIndex) return writeIndex;
-
-        if (writeIndex < outLength) {
-          out[writeIndex] = absoluteIndex;
-        }
-        writeIndex++;
-        chunk &= chunk - 1; // Clear the LSB
-      }
-
-      chunkIndex++;
-    }
-
-    return writeIndex;
+    return this.#bitIndicesInto(out, startIndex, endIndex, false);
   }
 
   /**
@@ -1113,49 +1171,9 @@ export class BooleanArray {
     if (typeof callback !== "function") {
       throw new TypeError('"callback" must be a function.');
     }
-    if (BooleanArray.assertIsSafeValue(startIndex) > BooleanArray.assertIsSafeValue(endIndex)) {
-      throw new RangeError('"startIndex" must be less than or equal to "endIndex".');
-    }
-    if (endIndex > this.size) {
-      throw new RangeError(`"endIndex" (${endIndex}) exceeds array size (${this.size}).`);
-    }
+    this.#assertValidRange(startIndex, endIndex);
     if (startIndex >= endIndex) return this;
-
-    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
-    const endChunk = (endIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
-    const lastChunkIndex = this.chunkCount - 1;
-
-    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
-      // Invert chunk to find false bits as set bits
-      let chunk = ~this.buffer[chunkIndex]!;
-      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
-
-      // Mask off unused bits in the last chunk to avoid false positives
-      if (chunkIndex === lastChunkIndex && this.bitsInLastChunk > 0) {
-        chunk &= this.lastChunkMask;
-      }
-
-      // Mask off bits before startIndex in the first chunk
-      if (chunkIndex === (startIndex >>> BooleanArray.CHUNK_SHIFT)) {
-        const startBitOffset = startIndex & BooleanArray.CHUNK_MASK;
-        chunk &= BooleanArray.ALL_BITS_TRUE << startBitOffset;
-      }
-
-      // Process all set bits (originally false bits) in this chunk
-      while (chunk !== 0) {
-        const lsb = chunk & -chunk;
-        const bitPosition = Math.clz32(lsb) ^ BooleanArray.CHUNK_MASK;
-        const absoluteIndex = chunkBaseIndex + bitPosition;
-
-        if (absoluteIndex >= endIndex) return this;
-
-        callback(absoluteIndex, this);
-        chunk &= chunk - 1; // Clear the LSB
-      }
-
-      chunkIndex++;
-    }
-
+    this.#forEachBitIndex(callback, startIndex, endIndex, true);
     return this;
   }
 
@@ -1179,55 +1197,9 @@ export class BooleanArray {
     if (!(out instanceof Uint32Array)) {
       throw new TypeError('"out" must be a Uint32Array.');
     }
-    if (BooleanArray.assertIsSafeValue(startIndex) > BooleanArray.assertIsSafeValue(endIndex)) {
-      throw new RangeError('"startIndex" must be less than or equal to "endIndex".');
-    }
-    if (endIndex > this.size) {
-      throw new RangeError(`"endIndex" (${endIndex}) exceeds array size (${this.size}).`);
-    }
+    this.#assertValidRange(startIndex, endIndex);
     if (startIndex >= endIndex) return 0;
-
-    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
-    const endChunk = (endIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
-    const lastChunkIndex = this.chunkCount - 1;
-    let writeIndex = 0;
-    const outLength = out.length;
-
-    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
-      // Invert chunk to find false bits as set bits
-      let chunk = ~this.buffer[chunkIndex]!;
-      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
-
-      // Mask off unused bits in the last chunk to avoid false positives
-      if (chunkIndex === lastChunkIndex && this.bitsInLastChunk > 0) {
-        chunk &= this.lastChunkMask;
-      }
-
-      // Mask off bits before startIndex in the first chunk
-      if (chunkIndex === (startIndex >>> BooleanArray.CHUNK_SHIFT)) {
-        const startBitOffset = startIndex & BooleanArray.CHUNK_MASK;
-        chunk &= BooleanArray.ALL_BITS_TRUE << startBitOffset;
-      }
-
-      // Process all set bits (originally false bits) in this chunk
-      while (chunk !== 0) {
-        const lsb = chunk & -chunk;
-        const bitPosition = Math.clz32(lsb) ^ BooleanArray.CHUNK_MASK;
-        const absoluteIndex = chunkBaseIndex + bitPosition;
-
-        if (absoluteIndex >= endIndex) return writeIndex;
-
-        if (writeIndex < outLength) {
-          out[writeIndex] = absoluteIndex;
-        }
-        writeIndex++;
-        chunk &= chunk - 1; // Clear the LSB
-      }
-
-      chunkIndex++;
-    }
-
-    return writeIndex;
+    return this.#bitIndicesInto(out, startIndex, endIndex, true);
   }
 
   /**
@@ -1521,21 +1493,7 @@ export class BooleanArray {
    * @allocates Creates a generator object. Use {@link forEach} for zero-allocation iteration.
    */
   *values(): IterableIterator<boolean> {
-    const buffer = this.buffer;
-    const mask = BooleanArray.CHUNK_MASK;
-    const shift = BooleanArray.CHUNK_SHIFT;
-    let currentChunkIndex = -1;
-    let currentChunkValue = 0;
-
-    for (let i = 0; i < this.size; i++) {
-      const chunkForThisBit = i >>> shift;
-      if (chunkForThisBit !== currentChunkIndex) {
-        currentChunkIndex = chunkForThisBit;
-        currentChunkValue = buffer[currentChunkIndex]!;
-      }
-      const offset = i & mask;
-      yield (currentChunkValue & (1 << offset)) !== 0;
-    }
+    yield* this;
   }
 
   /**
@@ -1548,12 +1506,7 @@ export class BooleanArray {
    * @allocates Creates a generator object. Use {@link forEachTruthy} or {@link truthyIndicesInto} for zero-allocation.
    */
   *truthyIndices(startIndex: number = 0, endIndex: number = this.size): IterableIterator<number> {
-    if (BooleanArray.assertIsSafeValue(startIndex) > BooleanArray.assertIsSafeValue(endIndex)) {
-      throw new RangeError('"startIndex" must be less than or equal to "endIndex".');
-    }
-    if (endIndex > this.size) {
-      throw new RangeError(`"endIndex" (${endIndex}) exceeds array size (${this.size}).`);
-    }
+    this.#assertValidRange(startIndex, endIndex);
     if (startIndex >= endIndex) return;
 
     const buffer = this.buffer;
@@ -1574,9 +1527,7 @@ export class BooleanArray {
 
       // Process all set bits in this chunk
       while (chunk !== 0) {
-        const lsb = chunk & -chunk;
-        const bitPosition = Math.clz32(lsb) ^ BooleanArray.CHUNK_MASK;
-        const absoluteIndex = chunkBaseIndex + bitPosition;
+        const absoluteIndex = chunkBaseIndex + BooleanArray.getLSBPosition(chunk);
 
         if (absoluteIndex >= endIndex) return;
 
