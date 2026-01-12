@@ -847,7 +847,7 @@ export class BooleanArray {
    * @throws {RangeError} if indices are out of bounds or invalid
    */
   forEachTruthy(
-    callback: (index: number, thisArg: BooleanArray) => void,
+    callback: (index: number, thisArg?: BooleanArray) => void,
     startIndex: number = 0,
     endIndex: number = this.size,
   ): this {
