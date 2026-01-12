@@ -2639,9 +2639,9 @@ Deno.test("BooleanArray - indexOf/lastIndexOf edge cases (32-bit truncation regr
     const arr = new BooleanArray(100);
     arr.set(99, true);
 
-    assertEquals(arr.indexOf(true, 99), 99);   // Exact last index
-    assertEquals(arr.indexOf(true, 100), -1);  // fromIndex === size
-    assertEquals(arr.indexOf(true, 101), -1);  // fromIndex > size
+    assertEquals(arr.indexOf(true, 99), 99); // Exact last index
+    assertEquals(arr.indexOf(true, 100), -1); // fromIndex === size
+    assertEquals(arr.indexOf(true, 101), -1); // fromIndex > size
   });
 
   await t.step("lastIndexOf: large fromIndex clamps to size-1", () => {
@@ -2664,10 +2664,10 @@ Deno.test("BooleanArray - indexOf/lastIndexOf edge cases (32-bit truncation regr
     arr.set(90, true);
 
     // Negative fromIndex: size + fromIndex
-    assertEquals(arr.lastIndexOf(true, -1), 90);   // 100 + (-1) = 99 → finds 90
-    assertEquals(arr.lastIndexOf(true, -10), 90);  // 100 + (-10) = 90 → finds 90
-    assertEquals(arr.lastIndexOf(true, -11), 10);  // 100 + (-11) = 89 → finds 10
-    assertEquals(arr.lastIndexOf(true, -91), -1);  // 100 + (-91) = 9 → no true before 9
+    assertEquals(arr.lastIndexOf(true, -1), 90); // 100 + (-1) = 99 → finds 90
+    assertEquals(arr.lastIndexOf(true, -10), 90); // 100 + (-10) = 90 → finds 90
+    assertEquals(arr.lastIndexOf(true, -11), 10); // 100 + (-11) = 89 → finds 10
+    assertEquals(arr.lastIndexOf(true, -91), -1); // 100 + (-91) = 9 → no true before 9
 
     // Extremely negative (would overflow with size addition in naive impl)
     assertEquals(arr.lastIndexOf(true, -100), -1); // 100 + (-100) = 0 → no true at 0
@@ -2681,10 +2681,10 @@ Deno.test("BooleanArray - indexOf/lastIndexOf edge cases (32-bit truncation regr
     arr.set(50, true);
     arr.set(90, true);
 
-    assertEquals(arr.indexOf(true, -90), 10);  // 100 + (-90) = 10 → finds 10
-    assertEquals(arr.indexOf(true, -50), 50);  // 100 + (-50) = 50 → finds 50
-    assertEquals(arr.indexOf(true, -10), 90);  // 100 + (-10) = 90 → finds 90
-    assertEquals(arr.indexOf(true, -5), -1);   // 100 + (-5) = 95 → no true at 95+
+    assertEquals(arr.indexOf(true, -90), 10); // 100 + (-90) = 10 → finds 10
+    assertEquals(arr.indexOf(true, -50), 50); // 100 + (-50) = 50 → finds 50
+    assertEquals(arr.indexOf(true, -10), 90); // 100 + (-10) = 90 → finds 90
+    assertEquals(arr.indexOf(true, -5), -1); // 100 + (-5) = 95 → no true at 95+
 
     // Extremely negative clamps to 0
     assertEquals(arr.indexOf(true, -100), 10); // Clamps to 0 → finds 10
@@ -2695,10 +2695,10 @@ Deno.test("BooleanArray - indexOf/lastIndexOf edge cases (32-bit truncation regr
   await t.step("indexOf/lastIndexOf: chunk boundary behavior", () => {
     // Test around the 32-bit chunk boundaries
     const arr = new BooleanArray(128); // 4 chunks
-    arr.set(31, true);  // Last bit of chunk 0
-    arr.set(32, true);  // First bit of chunk 1
-    arr.set(63, true);  // Last bit of chunk 1
-    arr.set(64, true);  // First bit of chunk 2
+    arr.set(31, true); // Last bit of chunk 0
+    arr.set(32, true); // First bit of chunk 1
+    arr.set(63, true); // Last bit of chunk 1
+    arr.set(64, true); // First bit of chunk 2
 
     // indexOf across boundaries
     assertEquals(arr.indexOf(true, 31), 31);
@@ -2747,7 +2747,7 @@ Deno.test("BooleanArray - indexOf/lastIndexOf user-facing scenarios", async (t) 
 
     // With fromIndex
     assertEquals(arr.indexOf(true, 0), 0);
-    assertEquals(arr.indexOf(true, 1), -1);  // fromIndex beyond size
+    assertEquals(arr.indexOf(true, 1), -1); // fromIndex beyond size
     assertEquals(arr.lastIndexOf(true, 0), 0);
     assertEquals(arr.lastIndexOf(true, -1), 0); // -1 → 0
   });
@@ -2778,7 +2778,7 @@ Deno.test("BooleanArray - indexOf/lastIndexOf user-facing scenarios", async (t) 
     assertEquals(arr.lastIndexOf(true, 0), 0);
 
     // Negative fromIndex that resolves to 0
-    assertEquals(arr.indexOf(true, -100), 0);  // -100 + 100 = 0, finds at 0
+    assertEquals(arr.indexOf(true, -100), 0); // -100 + 100 = 0, finds at 0
     assertEquals(arr.lastIndexOf(true, -100), 0); // -100 + 100 = 0, searches from 0, finds at 0
     assertEquals(arr.lastIndexOf(true, -101), -1); // -101 + 100 = -1, adjusted < 0, returns -1
   });
