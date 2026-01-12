@@ -1,0 +1,16 @@
+---
+description: Use Deno instead of Node.js, npm, pnpm, or vite.
+globs: "*.ts, *.tsx, *.html, *.css, *.js, *.jsx, package.json"
+alwaysApply: false
+---
+
+Default to using Deno instead of Node.js.
+
+- Use `deno <file>` instead of `node <file>` or `ts-node <file>`
+- Use `deno test` instead of `jest` or `vitest`
+- Use `deno build <file.html|file.ts|file.css>` instead of `webpack` or `esbuild`
+- Use `deno install` instead of `npm install` or `yarn install` or `pnpm install`
+- Use `deno run <script>` instead of `npm run <script>` or `yarn run <script>` or `pnpm run <script>`
+- Use `deno fmt` instead of `prettier`
+- Use `deno lint` instead of `eslint`
+- Use `deno check` instead of `tsc`
