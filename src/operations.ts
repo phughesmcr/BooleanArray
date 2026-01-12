@@ -1,6 +1,6 @@
 /**
  * @description Bindings for bitwise operations on BooleanArrays.
- * @copyright   2025 the BooleanArray authors. All rights reserved.
+ * @copyright   2026 the BooleanArray authors. All rights reserved.
  * @license     MIT
  * @module
  */

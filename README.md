@@ -343,6 +343,6 @@ Please run `deno test` and `deno task prep` before committing.
 
 BooleanArray is released under the MIT license. See `LICENSE` for further details.
 
-&copy; 2025 The BooleanArray Authors. All rights reserved.
+&copy; 2026 The BooleanArray Authors. All rights reserved.
 
 See `AUTHORS.md` for author details.
