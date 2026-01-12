@@ -17,8 +17,9 @@ See [jsr.io/@phughesmcr/booleanarray](https://jsr.io/@phughesmcr/booleanarray) f
 - **Memory efficient**: Stores 32 booleans per 4-byte chunk (8x more compact than a boolean array)
 - **Fast bitwise operations**: AND, OR, XOR, NOT, NAND, NOR, XNOR, and set difference
 - **Zero-allocation methods**: Many operations offer in-place or preallocated-buffer variants
+- **Bulk operations**: `copyFrom`, `setFromIndices`, and range-based `set`/`get` for efficient batch processing
 - **Fluent API**: Most methods return `this` for chaining
-- **Full iteration support**: Iterators, forEach, and generator methods
+- **Full iteration support**: Iterators, forEach, and generator methods for both truthy and falsy bits
 
 ## Installation
 
@@ -143,15 +144,34 @@ const indices = new Uint32Array(100);
 const count = bits.truthyIndicesInto(indices);
 // 'count' is the total number found; indices[0..count-1] contains the results
 
+// Copy falsy indices into a preallocated Uint32Array
+const falsyIndices = new Uint32Array(1000);
+const falsyCount = bits.falsyIndicesInto(falsyIndices);
+
 // Iterate without allocating a generator
 bits.forEachTruthy((index) => {
   console.log(`Bit ${index} is set`);
+});
+
+// Iterate over unset bits without allocation
+bits.forEachFalsy((index) => {
+  console.log(`Bit ${index} is unset`);
 });
 
 // Iterate all bits without allocation
 bits.forEach((value, index) => {
   console.log(`Bit ${index} = ${value}`);
 });
+
+// Bulk set bits from an array of indices (no intermediate allocations)
+bits.setFromIndices([1, 3, 5, 7, 9], true);
+bits.setFromIndices([0, 2, 4], false);
+
+// Zero-copy bulk transfer between BooleanArrays
+const source = new BooleanArray(1000);
+source.fill(true);
+bits.copyFrom(source);  // Copy all bits
+bits.copyFrom(source, 0, 100, 50);  // Copy 50 bits from source[0] to dest[100]
 ```
 
 ### Bitwise Operations
@@ -200,6 +220,7 @@ const bits = new BooleanArray(100);
 bits.isEmpty();              // true if no bits are set
 bits.isFull();               // true if all bits are set
 bits.getTruthyCount();       // number of set bits (population count)
+bits.getFalsyCount();        // number of unset bits
 bits.size;                   // total number of bits (100)
 bits.length;                 // number of Uint32 chunks in buffer
 
@@ -207,6 +228,10 @@ bits.length;                 // number of Uint32 chunks in buffer
 const other = bits.clone();
 bits.equals(other);          // true
 BooleanArray.equals(bits, other);  // static version
+
+// Index validation
+bits.isSafeIndex(50);        // true if index is valid for this array
+bits.assertIsSafeIndex(50);  // returns 50 or throws
 ```
 
 ### Iteration
@@ -236,6 +261,19 @@ for (const index of bits.keys()) { /* ... */ }
 for (const value of bits.values()) { /* ... */ }
 ```
 
+### Instance Properties
+
+```ts
+const bits = new BooleanArray(100);
+
+bits.buffer;          // Underlying Uint32Array (direct access for zero-copy interop)
+bits.size;            // Total number of bits (100)
+bits.length;          // Number of Uint32 chunks (alias for chunkCount)
+bits.chunkCount;      // Number of Uint32 chunks in buffer
+bits.lastChunkMask;   // Bitmask for valid bits in last chunk
+bits.bitsInLastChunk; // Number of valid bits in last chunk (0 means full chunk)
+```
+
 ### Cloning & Serialization
 
 ```ts
@@ -259,7 +297,9 @@ console.log(bits.toString());  // Uint32Array string format
 ```ts
 BooleanArray.BITS_PER_INT;   // 32 - bits per chunk
 BooleanArray.MAX_SAFE_SIZE;  // 536870911 - maximum array size
-BooleanArray.ALL_BITS_TRUE;  // 0xFFFFFFFF
+BooleanArray.ALL_BITS_TRUE;  // 0xFFFFFFFF - mask with all bits set
+BooleanArray.CHUNK_MASK;     // 31 - mask for bit offset within chunk
+BooleanArray.CHUNK_SHIFT;    // 5 - shift for chunk index calculation
 BooleanArray.EMPTY_ARRAY;    // Frozen empty boolean array for zero-allocation returns
 ```
 
@@ -278,6 +318,10 @@ BooleanArray.assertIsSafeValue(42);  // returns 42 or throws
 BooleanArray.getChunk(42);           // chunk index for bit 42
 BooleanArray.getChunkOffset(42);     // bit offset within chunk
 BooleanArray.getChunkCount(100);     // number of chunks needed for 100 bits
+
+// Bit manipulation utilities
+BooleanArray.popcount(0xFF00FF00);   // count set bits in a 32-bit integer (16)
+BooleanArray.getLSBPosition(8);      // position of lowest set bit (3)
 ```
 
 ## Performance Tips
