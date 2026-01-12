@@ -371,7 +371,12 @@ export class BooleanArray {
     return Math.clz32(value & -value) ^ BooleanArray.CHUNK_MASK;
   }
 
-  /** The underlying Uint32Array */
+  /**
+   * The underlying Uint32Array buffer.
+   * @warning Direct modification is allowed for zero-copy interop, but callers
+   * MUST ensure unused bits in the last chunk remain zero (use `lastChunkMask`).
+   * Violating this invariant may cause incorrect behavior in search/count operations.
+   */
   readonly buffer: Uint32Array;
 
   /**
@@ -795,7 +800,7 @@ export class BooleanArray {
   }
 
   /**
-   * Internal fast path for range access (no validation)
+   * Internal range access with validation
    * @param startIndex the start index to get the booleans from
    * @param count the number of booleans to get
    * @returns an array of booleans
@@ -931,7 +936,7 @@ export class BooleanArray {
       throw new TypeError('"fromIndex" must be a safe integer.');
     }
 
-    let start = fromIndex | 0;
+    let start = fromIndex;
     if (start < 0) {
       start = this.size + start;
       if (start < 0) start = 0;
@@ -999,7 +1004,7 @@ export class BooleanArray {
    * @returns the index of the last occurrence of the value, or -1 if the value is not present.
    */
   lastIndexOf(value: boolean, fromIndex: number = this.size - 1): number {
-    let startIndex = fromIndex | 0;
+    let startIndex = fromIndex;
 
     // Handle negative fromIndex
     if (startIndex < 0) {

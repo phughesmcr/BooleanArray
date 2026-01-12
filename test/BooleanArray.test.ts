@@ -2610,6 +2610,267 @@ Deno.test("BooleanArray - setFromIndices", async (t) => {
     assertEquals(arr.get(9990), true);
   });
 });
+
+Deno.test("BooleanArray - indexOf/lastIndexOf edge cases (32-bit truncation regression)", async (t) => {
+  // These tests ensure we don't use `| 0` truncation which wraps large values incorrectly
+
+  await t.step("indexOf: large fromIndex values that would wrap with | 0", () => {
+    const arr = new BooleanArray(100);
+    arr.set(0, true);
+    arr.set(50, true);
+
+    // 2^32 would become 0 with | 0, incorrectly finding bit at index 0
+    assertEquals(arr.indexOf(true, 4294967296), -1); // 2^32 > size → -1
+
+    // 2^31 would become -2147483648 with | 0
+    assertEquals(arr.indexOf(true, 2147483648), -1); // 2^31 > size → -1
+
+    // 2^31 - 1 (max positive 32-bit signed) still exceeds size
+    assertEquals(arr.indexOf(true, 2147483647), -1);
+
+    // Values in range [2^31, 2^32) would become negative with | 0
+    assertEquals(arr.indexOf(true, 3000000000), -1); // ~2.8 billion
+
+    // Searching for false with huge fromIndex
+    assertEquals(arr.indexOf(false, 4294967296), -1);
+  });
+
+  await t.step("indexOf: fromIndex exactly at and around size boundary", () => {
+    const arr = new BooleanArray(100);
+    arr.set(99, true);
+
+    assertEquals(arr.indexOf(true, 99), 99);   // Exact last index
+    assertEquals(arr.indexOf(true, 100), -1);  // fromIndex === size
+    assertEquals(arr.indexOf(true, 101), -1);  // fromIndex > size
+  });
+
+  await t.step("lastIndexOf: large fromIndex clamps to size-1", () => {
+    const arr = new BooleanArray(100);
+    arr.set(50, true);
+    arr.set(99, true);
+
+    // Large values should clamp to size-1, finding the last true bit
+    assertEquals(arr.lastIndexOf(true, 4294967296), 99); // 2^32 → clamp to 99
+    assertEquals(arr.lastIndexOf(true, 2147483648), 99); // 2^31 → clamp to 99
+    assertEquals(arr.lastIndexOf(true, 3000000000), 99); // ~2.8B → clamp to 99
+
+    // Should still respect the clamped fromIndex for searching
+    assertEquals(arr.lastIndexOf(false, 4294967296), 98); // Last false before 99
+  });
+
+  await t.step("lastIndexOf: negative fromIndex edge cases", () => {
+    const arr = new BooleanArray(100);
+    arr.set(10, true);
+    arr.set(90, true);
+
+    // Negative fromIndex: size + fromIndex
+    assertEquals(arr.lastIndexOf(true, -1), 90);   // 100 + (-1) = 99 → finds 90
+    assertEquals(arr.lastIndexOf(true, -10), 90);  // 100 + (-10) = 90 → finds 90
+    assertEquals(arr.lastIndexOf(true, -11), 10);  // 100 + (-11) = 89 → finds 10
+    assertEquals(arr.lastIndexOf(true, -91), -1);  // 100 + (-91) = 9 → no true before 9
+
+    // Extremely negative (would overflow with size addition in naive impl)
+    assertEquals(arr.lastIndexOf(true, -100), -1); // 100 + (-100) = 0 → no true at 0
+    assertEquals(arr.lastIndexOf(true, -101), -1); // Adjusted index < 0 → -1
+    assertEquals(arr.lastIndexOf(true, -1000), -1);
+  });
+
+  await t.step("indexOf: negative fromIndex edge cases", () => {
+    const arr = new BooleanArray(100);
+    arr.set(10, true);
+    arr.set(50, true);
+    arr.set(90, true);
+
+    assertEquals(arr.indexOf(true, -90), 10);  // 100 + (-90) = 10 → finds 10
+    assertEquals(arr.indexOf(true, -50), 50);  // 100 + (-50) = 50 → finds 50
+    assertEquals(arr.indexOf(true, -10), 90);  // 100 + (-10) = 90 → finds 90
+    assertEquals(arr.indexOf(true, -5), -1);   // 100 + (-5) = 95 → no true at 95+
+
+    // Extremely negative clamps to 0
+    assertEquals(arr.indexOf(true, -100), 10); // Clamps to 0 → finds 10
+    assertEquals(arr.indexOf(true, -101), 10); // Clamps to 0 → finds 10
+    assertEquals(arr.indexOf(true, -1000), 10);
+  });
+
+  await t.step("indexOf/lastIndexOf: chunk boundary behavior", () => {
+    // Test around the 32-bit chunk boundaries
+    const arr = new BooleanArray(128); // 4 chunks
+    arr.set(31, true);  // Last bit of chunk 0
+    arr.set(32, true);  // First bit of chunk 1
+    arr.set(63, true);  // Last bit of chunk 1
+    arr.set(64, true);  // First bit of chunk 2
+
+    // indexOf across boundaries
+    assertEquals(arr.indexOf(true, 31), 31);
+    assertEquals(arr.indexOf(true, 32), 32);
+    assertEquals(arr.indexOf(true, 33), 63);
+
+    // lastIndexOf across boundaries
+    assertEquals(arr.lastIndexOf(true, 64), 64);
+    assertEquals(arr.lastIndexOf(true, 63), 63);
+    assertEquals(arr.lastIndexOf(true, 62), 32);
+    assertEquals(arr.lastIndexOf(true, 31), 31);
+  });
+
+  await t.step("indexOf: safe integer validation still works", () => {
+    const arr = new BooleanArray(100);
+
+    // Non-safe integers should throw
+    assertThrows(() => arr.indexOf(true, 1.5), TypeError);
+    assertThrows(() => arr.indexOf(true, NaN), TypeError);
+    assertThrows(() => arr.indexOf(true, Infinity), TypeError);
+    assertThrows(() => arr.indexOf(true, -Infinity), TypeError);
+
+    // MAX_SAFE_INTEGER is valid (though way beyond any realistic size)
+    assertEquals(arr.indexOf(true, Number.MAX_SAFE_INTEGER), -1);
+  });
+});
+
+Deno.test("BooleanArray - indexOf/lastIndexOf user-facing scenarios", async (t) => {
+  // Tests focused on common user expectations and edge cases
+
+  await t.step("size=1 array: smallest possible array", () => {
+    const arr = new BooleanArray(1);
+
+    // Empty array
+    assertEquals(arr.indexOf(true), -1);
+    assertEquals(arr.indexOf(false), 0);
+    assertEquals(arr.lastIndexOf(true), -1);
+    assertEquals(arr.lastIndexOf(false), 0);
+
+    // Set the only bit
+    arr.set(0, true);
+    assertEquals(arr.indexOf(true), 0);
+    assertEquals(arr.indexOf(false), -1);
+    assertEquals(arr.lastIndexOf(true), 0);
+    assertEquals(arr.lastIndexOf(false), -1);
+
+    // With fromIndex
+    assertEquals(arr.indexOf(true, 0), 0);
+    assertEquals(arr.indexOf(true, 1), -1);  // fromIndex beyond size
+    assertEquals(arr.lastIndexOf(true, 0), 0);
+    assertEquals(arr.lastIndexOf(true, -1), 0); // -1 → 0
+  });
+
+  await t.step("default arguments: indexOf starts at 0, lastIndexOf at end", () => {
+    const arr = new BooleanArray(100);
+    arr.set(25, true);
+    arr.set(75, true);
+
+    // indexOf with no fromIndex should find first match (25)
+    assertEquals(arr.indexOf(true), 25);
+
+    // lastIndexOf with no fromIndex should find last match (75)
+    assertEquals(arr.lastIndexOf(true), 75);
+
+    // Verify defaults match explicit values
+    assertEquals(arr.indexOf(true), arr.indexOf(true, 0));
+    assertEquals(arr.lastIndexOf(true), arr.lastIndexOf(true, arr.size - 1));
+  });
+
+  await t.step("finding element at first index (0)", () => {
+    const arr = new BooleanArray(100);
+    arr.set(0, true);
+
+    assertEquals(arr.indexOf(true), 0);
+    assertEquals(arr.indexOf(true, 0), 0);
+    assertEquals(arr.lastIndexOf(true), 0);
+    assertEquals(arr.lastIndexOf(true, 0), 0);
+
+    // Negative fromIndex that resolves to 0
+    assertEquals(arr.indexOf(true, -100), 0);  // -100 + 100 = 0, finds at 0
+    assertEquals(arr.lastIndexOf(true, -100), 0); // -100 + 100 = 0, searches from 0, finds at 0
+    assertEquals(arr.lastIndexOf(true, -101), -1); // -101 + 100 = -1, adjusted < 0, returns -1
+  });
+
+  await t.step("finding element at last index (size-1)", () => {
+    const arr = new BooleanArray(100);
+    arr.set(99, true);
+
+    assertEquals(arr.indexOf(true), 99);
+    assertEquals(arr.indexOf(true, 99), 99);
+    assertEquals(arr.indexOf(true, -1), 99); // -1 → 99
+
+    assertEquals(arr.lastIndexOf(true), 99);
+    assertEquals(arr.lastIndexOf(true, 99), 99);
+    assertEquals(arr.lastIndexOf(true, -1), 99); // -1 → 99
+  });
+
+  await t.step("single match: indexOf and lastIndexOf return same value", () => {
+    const arr = new BooleanArray(100);
+    arr.set(42, true);
+
+    const first = arr.indexOf(true);
+    const last = arr.lastIndexOf(true);
+    assertEquals(first, last);
+    assertEquals(first, 42);
+  });
+
+  await t.step("not found: returns -1", () => {
+    // All false, looking for true
+    const allFalse = new BooleanArray(100);
+    assertEquals(allFalse.indexOf(true), -1);
+    assertEquals(allFalse.lastIndexOf(true), -1);
+
+    // All true, looking for false
+    const allTrue = new BooleanArray(100);
+    allTrue.fill(true);
+    assertEquals(allTrue.indexOf(false), -1);
+    assertEquals(allTrue.lastIndexOf(false), -1);
+  });
+
+  await t.step("Array.prototype parity: behavior matches standard JS arrays", () => {
+    // Create equivalent boolean array and JS array
+    const boolArr = new BooleanArray(10);
+    boolArr.set(2, true);
+    boolArr.set(5, true);
+    boolArr.set(8, true);
+
+    const jsArr = [false, false, true, false, false, true, false, false, true, false];
+
+    // Basic indexOf parity
+    assertEquals(boolArr.indexOf(true), jsArr.indexOf(true));
+    assertEquals(boolArr.indexOf(false), jsArr.indexOf(false));
+    assertEquals(boolArr.indexOf(true, 3), jsArr.indexOf(true, 3));
+    assertEquals(boolArr.indexOf(true, 6), jsArr.indexOf(true, 6));
+    assertEquals(boolArr.indexOf(true, 9), jsArr.indexOf(true, 9));
+
+    // Basic lastIndexOf parity
+    assertEquals(boolArr.lastIndexOf(true), jsArr.lastIndexOf(true));
+    assertEquals(boolArr.lastIndexOf(false), jsArr.lastIndexOf(false));
+    assertEquals(boolArr.lastIndexOf(true, 7), jsArr.lastIndexOf(true, 7));
+    assertEquals(boolArr.lastIndexOf(true, 4), jsArr.lastIndexOf(true, 4));
+    assertEquals(boolArr.lastIndexOf(true, 1), jsArr.lastIndexOf(true, 1));
+
+    // Negative fromIndex parity
+    assertEquals(boolArr.indexOf(true, -5), jsArr.indexOf(true, -5));
+    assertEquals(boolArr.indexOf(true, -8), jsArr.indexOf(true, -8));
+    assertEquals(boolArr.lastIndexOf(true, -2), jsArr.lastIndexOf(true, -2));
+    assertEquals(boolArr.lastIndexOf(true, -5), jsArr.lastIndexOf(true, -5));
+
+    // Edge cases
+    assertEquals(boolArr.indexOf(true, -100), jsArr.indexOf(true, -100)); // Clamps to 0
+    assertEquals(boolArr.lastIndexOf(true, -100), jsArr.lastIndexOf(true, -100)); // Returns -1
+  });
+
+  await t.step("fromIndex at exact boundaries", () => {
+    const arr = new BooleanArray(32); // Exactly one chunk
+    arr.set(0, true);
+    arr.set(31, true);
+
+    // indexOf at boundaries
+    assertEquals(arr.indexOf(true, 0), 0);
+    assertEquals(arr.indexOf(true, 1), 31);
+    assertEquals(arr.indexOf(true, 31), 31);
+    assertEquals(arr.indexOf(true, 32), -1); // === size
+
+    // lastIndexOf at boundaries
+    assertEquals(arr.lastIndexOf(true, 31), 31);
+    assertEquals(arr.lastIndexOf(true, 30), 0);
+    assertEquals(arr.lastIndexOf(true, 0), 0);
+  });
+});
+
 Deno.test("BooleanArray - equals() with corrupted unused bits", async (t) => {
   await t.step("equals ignores unused bits in last chunk", () => {
     // Size 33 = 2 chunks, with only 1 bit valid in chunk 1
