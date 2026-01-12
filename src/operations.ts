@@ -198,10 +198,15 @@ export function equals(a: BooleanArray, b: BooleanArray): boolean {
   if (a.size !== b.size) {
     return false;
   }
-  for (let i = 0; i < a.buffer.length; i++) {
+  const lastIndex = a.chunkCount - 1;
+  // Compare all chunks except the last
+  for (let i = 0; i < lastIndex; i++) {
     if (a.buffer[i]! !== b.buffer[i]!) {
       return false;
     }
   }
-  return true;
+  // Compare last chunk with mask to ignore unused bits
+  const aMasked = a.buffer[lastIndex]! & a.lastChunkMask;
+  const bMasked = b.buffer[lastIndex]! & b.lastChunkMask;
+  return aMasked === bMasked;
 }

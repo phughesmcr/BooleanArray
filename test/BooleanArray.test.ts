@@ -2610,3 +2610,53 @@ Deno.test("BooleanArray - setFromIndices", async (t) => {
     assertEquals(arr.get(9990), true);
   });
 });
+Deno.test("BooleanArray - equals() with corrupted unused bits", async (t) => {
+  await t.step("equals ignores unused bits in last chunk", () => {
+    // Size 33 = 2 chunks, with only 1 bit valid in chunk 1
+    const a = new BooleanArray(33);
+    const b = new BooleanArray(33);
+
+    a.set(0, true);
+    a.set(32, true);
+    b.set(0, true);
+    b.set(32, true);
+
+    // Before corruption - should be equal
+    assertEquals(a.equals(b), true);
+    assertEquals(BooleanArray.equals(a, b), true);
+
+    // Corrupt b's unused bits (bits 1-31 of chunk 1 are unused for size=33)
+    b.buffer[1] = b.buffer[1]! | 0xFFFFFFFE;
+
+    // After corruption - should STILL be equal (unused bits don't matter)
+    assertEquals(a.equals(b), true);
+    assertEquals(BooleanArray.equals(a, b), true);
+
+    // Verify logical content is the same
+    assertEquals(a.get(32), b.get(32));
+    assertEquals(a.getTruthyCount(), b.getTruthyCount());
+  });
+
+  await t.step("equals detects difference in valid bits", () => {
+    const a = new BooleanArray(33);
+    const b = new BooleanArray(33);
+
+    a.set(32, true);
+    // b has bit 32 as false (default)
+
+    assertEquals(a.equals(b), false);
+  });
+
+  await t.step("equals handles size=32 (full last chunk)", () => {
+    const a = new BooleanArray(32);
+    const b = new BooleanArray(32);
+
+    a.set(31, true);
+    b.set(31, true);
+
+    assertEquals(a.equals(b), true);
+
+    b.set(0, true);
+    assertEquals(a.equals(b), false);
+  });
+});
