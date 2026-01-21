@@ -75,6 +75,6 @@
     "include": ["test/**/*.test.ts"]
   },
   "publish": {
-    "exclude": ["example/**", "bench/**", "test/**", ".github/**"]
+    "exclude": ["example/**", "bench/**", "test/**", ".github/**", ".vscode/**", ".cursor/**", ".claude/**"]
   }
 }
