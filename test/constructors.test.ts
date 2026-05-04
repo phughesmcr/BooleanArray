@@ -2,13 +2,7 @@
 /// <reference lib="dom" />
 
 import { assertEquals, assertThrows } from "jsr:@std/assert@^1.0.10";
-import {
-  BooleanArray,
-  fromArray,
-  fromObjects,
-  fromUint32Array,
-  getChunkCount,
-} from "../mod.ts";
+import { BooleanArray, fromArray, fromObjects, fromUint32Array, getChunkCount } from "../mod.ts";
 import { assertUnusedBitsZero } from "./helpers.ts";
 
 Deno.test("BooleanArray - Factory Functions", async (t) => {

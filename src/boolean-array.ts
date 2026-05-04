@@ -416,6 +416,73 @@ export class BooleanArray {
   }
 
   /**
+   * Find the next index matching `value` inside a half-open range.
+   * @param value the bit value to locate
+   * @param fromIndex inclusive start index [default = 0]
+   * @param endIndex exclusive end index [default = this.size]
+   * @returns the next matching index, or -1 if no match exists in the range
+   * @allocates Does not allocate; useful as a primitive cursor for hot loops.
+   */
+  nextIndexOf(value: boolean, fromIndex: number = 0, endIndex: number = this.size): number {
+    assertValidRange(this, fromIndex, endIndex);
+    if (fromIndex >= endIndex) {
+      return -1;
+    }
+
+    const buffer = this.buffer;
+    const chunkCount = this.wordLength;
+    const startChunk = fromIndex >>> CHUNK_SHIFT;
+    const endChunk = (endIndex - 1) >>> CHUNK_SHIFT;
+    const lastChunkIndex = chunkCount - 1;
+    const lastChunkMask = this.lastChunkMask;
+
+    for (let chunkIndex = startChunk; chunkIndex <= endChunk; chunkIndex++) {
+      let chunk = buffer[chunkIndex]!;
+
+      if (!value) {
+        chunk = ~chunk;
+        if (chunkIndex === lastChunkIndex && this.bitsInLastChunk > 0) {
+          chunk &= lastChunkMask;
+        }
+      }
+
+      if (chunkIndex === startChunk) {
+        chunk &= MAX_UINT32 << (fromIndex & CHUNK_MASK);
+      }
+
+      if (chunk !== 0) {
+        const bitPos = getLSBPosition(chunk);
+        const index = (chunkIndex << CHUNK_SHIFT) + bitPos;
+        return index < endIndex ? index : -1;
+      }
+    }
+
+    return -1;
+  }
+
+  /**
+   * Find the next set bit inside a half-open range.
+   * @param fromIndex inclusive start index [default = 0]
+   * @param endIndex exclusive end index [default = this.size]
+   * @returns the next truthy index, or -1 if no set bit exists in the range
+   * @allocates Does not allocate; use in a loop as an allocation-free cursor.
+   */
+  nextTruthyIndex(fromIndex: number = 0, endIndex: number = this.size): number {
+    return this.nextIndexOf(true, fromIndex, endIndex);
+  }
+
+  /**
+   * Find the next unset bit inside a half-open range.
+   * @param fromIndex inclusive start index [default = 0]
+   * @param endIndex exclusive end index [default = this.size]
+   * @returns the next falsy index, or -1 if no unset bit exists in the range
+   * @allocates Does not allocate; use in a loop as an allocation-free cursor.
+   */
+  nextFalsyIndex(fromIndex: number = 0, endIndex: number = this.size): number {
+    return this.nextIndexOf(false, fromIndex, endIndex);
+  }
+
+  /**
    * Get the index of the first occurrence of a value.
    * @param value The value to locate in the array.
    * @param fromIndex The array index at which to begin the search. If fromIndex is omitted, the search starts at index 0.

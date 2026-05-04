@@ -82,6 +82,7 @@ const dest = new BooleanArray(1024);
 const boolOut = new Array<boolean>(1024);
 const indexOut = new Uint32Array(1024);
 const noopForEach = (): void => {};
+let cursorSink = 0;
 
 source.fill(true);
 medium.set(0, 10_000, true);
@@ -137,6 +138,17 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "nextTruthyIndex cursor",
+    iterations: 50_000,
+    fn: () => {
+      let count = 0;
+      for (let index = medium.nextTruthyIndex(); index !== -1; index = medium.nextTruthyIndex(index + 1)) {
+        count++;
+      }
+      cursorSink ^= count;
+    },
+  },
+  {
     name: "values iterator",
     iterations: 100_000,
     fn: () => {
@@ -158,4 +170,8 @@ console.log("Measures memory growth during tight loops, then retained memory aft
 
 for (const scenario of scenarios) {
   runScenario(scenario);
+}
+
+if (cursorSink === Number.MIN_SAFE_INTEGER) {
+  console.log("unreachable", cursorSink);
 }

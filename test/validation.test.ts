@@ -2,14 +2,7 @@
 /// <reference lib="dom" />
 
 import { assertEquals, assertThrows } from "jsr:@std/assert@^1.0.10";
-import {
-  assertIsSafeSize,
-  assertIsSafeValue,
-  BooleanArray,
-  EMPTY_ARRAY,
-  isSafeSize,
-  isSafeValue,
-} from "../mod.ts";
+import { assertIsSafeSize, assertIsSafeValue, BooleanArray, EMPTY_ARRAY, isSafeSize, isSafeValue } from "../mod.ts";
 
 Deno.test("BooleanArray - Validation Utilities", async (t) => {
   await t.step("should validate assertIsSafeValue", () => {

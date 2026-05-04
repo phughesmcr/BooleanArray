@@ -2,19 +2,7 @@
 /// <reference lib="dom" />
 
 import { assert, assertEquals, assertThrows } from "jsr:@std/assert@^1.0.10";
-import {
-  BooleanArray,
-  and,
-  difference,
-  equals,
-  fromArray,
-  nand,
-  nor,
-  not,
-  or,
-  xnor,
-  xor,
-} from "../mod.ts";
+import { and, BooleanArray, difference, equals, fromArray, nand, nor, not, or, xnor, xor } from "../mod.ts";
 import { assertUnusedBitsZero } from "./helpers.ts";
 
 Deno.test("BooleanArray - Bitwise Operations", async (t) => {

@@ -162,6 +162,11 @@ bits.forEachFalsy((index) => {
   console.log(`Bit ${index} is unset`);
 });
 
+// Cursor-style scanning avoids generator allocation and callback dispatch
+for (let index = bits.nextTruthyIndex(); index !== -1; index = bits.nextTruthyIndex(index + 1)) {
+  console.log(`Bit ${index} is set`);
+}
+
 // Iterate all bits without allocation
 bits.forEach((value, index) => {
   console.log(`Bit ${index} = ${value}`);

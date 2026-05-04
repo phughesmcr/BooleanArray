@@ -2,7 +2,7 @@
 /// <reference lib="dom" />
 
 import { assert, assertEquals, assertThrows } from "jsr:@std/assert@^1.0.10";
-import { ALL_BITS_TRUE, BooleanArray, and, equals, fromArray, getChunkCount, not, or } from "../mod.ts";
+import { ALL_BITS_TRUE, and, BooleanArray, equals, fromArray, getChunkCount, not, or } from "../mod.ts";
 import { assertUnusedBitsZero } from "./helpers.ts";
 
 Deno.test("BooleanArray - Construction and Validation", async (t) => {
@@ -843,6 +843,47 @@ Deno.test("BooleanArray - truthyIndicesInto", async (t) => {
     const count = arr.truthyIndicesInto(out);
 
     assertEquals(count, 0);
+  });
+});
+
+Deno.test("BooleanArray - nextIndexOf cursor APIs", async (t) => {
+  await t.step("should scan truthy indices without iterator allocation", () => {
+    const arr = BooleanArray.fromArray(100, [0, 5, 31, 32, 99]);
+    const visited: number[] = [];
+
+    for (let index = arr.nextTruthyIndex(); index !== -1; index = arr.nextTruthyIndex(index + 1)) {
+      visited.push(index);
+    }
+
+    assertEquals(visited, [0, 5, 31, 32, 99]);
+  });
+
+  await t.step("should respect half-open ranges", () => {
+    const arr = BooleanArray.fromArray(100, [5, 15, 25, 35, 45]);
+
+    assertEquals(arr.nextTruthyIndex(10, 40), 15);
+    assertEquals(arr.nextTruthyIndex(16, 40), 25);
+    assertEquals(arr.nextTruthyIndex(36, 40), -1);
+    assertEquals(arr.nextTruthyIndex(40, 40), -1);
+  });
+
+  await t.step("should scan falsy indices and ignore unused bits", () => {
+    const arr = new BooleanArray(33);
+    arr.fill(true);
+    arr.set(10, false);
+
+    assertEquals(arr.nextFalsyIndex(), 10);
+    assertEquals(arr.nextFalsyIndex(11), -1);
+    assertEquals(arr.nextIndexOf(false, 32, 33), -1);
+  });
+
+  await t.step("should validate ranges", () => {
+    const arr = new BooleanArray(10);
+
+    assertThrows(() => arr.nextTruthyIndex(-1), RangeError);
+    assertThrows(() => arr.nextTruthyIndex(1.5), TypeError);
+    assertThrows(() => arr.nextTruthyIndex(8, 7), RangeError);
+    assertThrows(() => arr.nextTruthyIndex(0, 11), RangeError);
   });
 });
 
