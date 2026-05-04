@@ -6,7 +6,15 @@
  */
 
 import { BooleanArray } from "./src/boolean-array.ts";
-import { ALL_BITS_TRUE, CHUNK_MASK, CHUNK_SHIFT, EMPTY_ARRAY } from "./src/constants.ts";
+import {
+  ALL_BITS_TRUE,
+  BITS_PER_INT,
+  CHUNK_MASK,
+  CHUNK_SHIFT,
+  EMPTY_ARRAY,
+  MAX_SAFE_SIZE,
+  MAX_UINT32,
+} from "./src/constants.ts";
 import { fromArray, fromObjects, fromUint32Array, fromUint8Array } from "./src/constructors.ts";
 import { getChunk, getChunkCount, getChunkOffset, getLSBPosition, popcount } from "./src/internal.ts";
 import {
@@ -32,6 +40,7 @@ import {
 } from "./src/operations.ts";
 import { assertIsSafeSize, assertIsSafeValue, isSafeSize, isSafeValue } from "./src/validation.ts";
 
+/** Utility namespace for BooleanArray factory functions, operations, validation helpers, and constants. */
 const BooleanArrayUtils = {
   assertIsSafeSize,
   assertIsSafeValue,
@@ -66,42 +75,16 @@ const BooleanArrayUtils = {
   getLSBPosition,
   popcount,
   ALL_BITS_TRUE,
+  BITS_PER_INT,
   CHUNK_MASK,
   CHUNK_SHIFT,
   EMPTY_ARRAY,
-};
+  MAX_SAFE_SIZE,
+  MAX_UINT32,
+} as const;
 
-type BooleanArrayStatics = {
-  assertIsSafeSize: typeof assertIsSafeSize;
-  assertIsSafeValue: typeof assertIsSafeValue;
-  isSafeSize: typeof isSafeSize;
-  isSafeValue: typeof isSafeValue;
-  fromArray: typeof fromArray;
-  fromObjects: typeof fromObjects;
-  fromUint32Array: typeof fromUint32Array;
-  fromUint8Array: typeof fromUint8Array;
-  getChunk: typeof getChunk;
-  getChunkCount: typeof getChunkCount;
-  getChunkOffset: typeof getChunkOffset;
-  getLSBPosition: typeof getLSBPosition;
-  popcount: typeof popcount;
-};
-
-const BooleanArrayExport = Object.assign(BooleanArray, {
-  assertIsSafeSize,
-  assertIsSafeValue,
-  isSafeSize,
-  isSafeValue,
-  fromArray,
-  fromObjects,
-  fromUint32Array,
-  fromUint8Array,
-  getChunk,
-  getChunkCount,
-  getChunkOffset,
-  getLSBPosition,
-  popcount,
-}) as typeof BooleanArray & BooleanArrayStatics;
+/** Default export for consumers that prefer namespace-style imports. */
+const defaultExport = { BooleanArray, BooleanArrayUtils } as const;
 
 export {
   ALL_BITS_TRUE,
@@ -109,7 +92,8 @@ export {
   andInto,
   assertIsSafeSize,
   assertIsSafeValue,
-  BooleanArrayExport as BooleanArray,
+  BITS_PER_INT,
+  BooleanArray,
   BooleanArrayUtils,
   CHUNK_MASK,
   CHUNK_SHIFT,
@@ -129,6 +113,8 @@ export {
   intersects,
   isSafeSize,
   isSafeValue,
+  MAX_SAFE_SIZE,
+  MAX_UINT32,
   nand,
   nandInto,
   nor,
@@ -143,4 +129,4 @@ export {
   xor,
   xorInto,
 };
-export default { BooleanArray: BooleanArrayExport, BooleanArrayUtils };
+export default defaultExport;

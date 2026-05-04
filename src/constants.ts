@@ -14,7 +14,7 @@ export const MIN_UINT32 = 0 as const;
 export const MAX_UINT32 = 4294967295 as const; // 0xFFFFFFFF
 
 /** Alias for MAX_UINT32 for boolean bit masks */
-export const ALL_BITS_TRUE = MAX_UINT32;
+export const ALL_BITS_TRUE: typeof MAX_UINT32 = MAX_UINT32;
 
 /** An empty array of booleans */
 export const EMPTY_ARRAY: readonly boolean[] = Object.freeze([]);

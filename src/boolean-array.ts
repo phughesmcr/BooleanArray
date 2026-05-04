@@ -11,6 +11,9 @@ import {
   bitIndicesInto,
   forEachBitIndex,
   getBit,
+  getChunk,
+  getChunkCount,
+  getChunkOffset,
   getLSBPosition,
   getRange,
   is,
@@ -19,15 +22,83 @@ import {
   setRange,
 } from "./internal.ts";
 import { and, containsAll, difference, equals, intersects, nand, nor, not, or, xnor, xor } from "./operations.ts";
-import { assertIsSafeSize, assertIsSafeValue } from "./validation.ts";
+import { assertIsSafeSize, assertIsSafeValue, isSafeSize, isSafeValue } from "./validation.ts";
 
 /** A fast boolean array backed by a Uint32Array */
 export class BooleanArray {
   /** The number of bits per chunk */
-  static readonly BITS_PER_INT = BITS_PER_INT;
+  static readonly BITS_PER_INT: 32 = BITS_PER_INT;
 
   /** The maximum safe size for bit operations */
-  static readonly MAX_SAFE_SIZE = MAX_SAFE_SIZE; // Math.floor((2 ** 32 - 1) / 8);
+  static readonly MAX_SAFE_SIZE: 536870911 = MAX_SAFE_SIZE; // Math.floor((2 ** 32 - 1) / 8);
+
+  /** Validate that a size can be represented safely by BooleanArray. */
+  static readonly assertIsSafeSize: (size: number) => number = assertIsSafeSize;
+
+  /** Validate that a raw Uint32 word can be represented safely. */
+  static readonly assertIsSafeValue: (value: number) => number = assertIsSafeValue;
+
+  /** Check whether a size can be represented safely by BooleanArray. */
+  static readonly isSafeSize: (size: number) => boolean = isSafeSize;
+
+  /** Check whether a raw Uint32 word can be represented safely. */
+  static readonly isSafeValue: (value: number) => boolean = isSafeValue;
+
+  /** Return the chunk index for a bit index. */
+  static readonly getChunk: (index: number) => number = getChunk;
+
+  /** Return the number of chunks needed for a boolean count. */
+  static readonly getChunkCount: (bools: number) => number = getChunkCount;
+
+  /** Return the bit offset within a chunk for a bit index. */
+  static readonly getChunkOffset: (boolIndex: number) => number = getChunkOffset;
+
+  /** Count the set bits in a 32-bit integer. */
+  static readonly popcount: (value: number) => number = popcount;
+
+  /** Return the position of the least significant set bit in a non-zero 32-bit integer. */
+  static readonly getLSBPosition: (value: number) => number = getLSBPosition;
+
+  /**
+   * Create a BooleanArray from an array-like sequence of booleans or truthy indices.
+   * @param size the size of the BooleanArray
+   * @param arr if boolean values, copied by position; if numbers, treated as indices to set true
+   * @returns a new BooleanArray instance
+   */
+  static fromArray(size: number, arr: ArrayLike<number | boolean>): BooleanArray {
+    return new BooleanArray(size).copyFromArray(arr);
+  }
+
+  /**
+   * Create a BooleanArray from raw Uint32 words.
+   * @param size the size of the BooleanArray
+   * @param arr the raw word input
+   * @returns a new BooleanArray instance
+   */
+  static fromUint32Array(size: number, arr: ArrayLike<number>): BooleanArray {
+    return new BooleanArray(size).copyFromUint32Array(arr);
+  }
+
+  /**
+   * Create a BooleanArray from positional 0/1 bytes.
+   * @param size the size of the BooleanArray
+   * @param arr the positional 0/1 byte input
+   * @returns a new BooleanArray instance
+   */
+  static fromUint8Array(size: number, arr: ArrayLike<number>): BooleanArray {
+    return new BooleanArray(size).copyFromUint8Array(arr);
+  }
+
+  /**
+   * Create a BooleanArray from objects whose key values are truthy indices.
+   * @param size the size of the BooleanArray
+   * @param key the object key containing each bit index
+   * @param objs the object array input
+   * @returns a new BooleanArray instance
+   */
+  static fromObjects<T>(size: number, key: keyof T, objs: T[]): BooleanArray {
+    return new BooleanArray(size).copyFromObjects(key, objs);
+  }
 
   /**
    * The underlying Uint32Array buffer.
@@ -647,6 +718,11 @@ export class BooleanArray {
     return containsAll(this, subset);
   }
 
+  /**
+   * Set every bit in the array to the given boolean value.
+   * @param value the value to write to every bit
+   * @returns the current BooleanArray
+   */
   fill(value: boolean): this {
     this.buffer.fill(value ? MAX_UINT32 : 0);
     // Mask off any excess bits in the last chunk if needed
@@ -714,7 +790,9 @@ export class BooleanArray {
    * @returns a boolean when count is undefined; otherwise an array of booleans
    * @allocates Range access returns a new array. Use {@link getInto} for zero-allocation.
    */
+  /** Get a single boolean value by index. */
   get(index: number): boolean;
+  /** Get a contiguous range of boolean values. */
   get(startIndex: number, count: number): boolean[];
   get(indexOrStartIndex: number, count?: number): boolean | boolean[] {
     if (count === undefined) {
@@ -1052,10 +1130,18 @@ export class BooleanArray {
     return -1;
   }
 
+  /**
+   * Check whether every bit is false.
+   * @returns `true` if no bits are set, `false` otherwise
+   */
   isEmpty(): boolean {
     return is(this, false);
   }
 
+  /**
+   * Check whether every bit is true.
+   * @returns `true` if every bit is set, `false` otherwise
+   */
   isFull(): boolean {
     return is(this, true);
   }
@@ -1208,7 +1294,9 @@ export class BooleanArray {
    * @throws {TypeError} if indices are not safe integers
    * @throws {RangeError} if indices are out of bounds
    */
+  /** Set a single bit to a given value. */
   set(index: number, value: boolean): this;
+  /** Set a contiguous range of bits to a given value. */
   set(startIndex: number, count: number, value: boolean): this;
   set(indexOrStartIndex: number, valueOrCount: boolean | number, value?: boolean): this {
     if (value === undefined) {
@@ -1289,6 +1377,7 @@ export class BooleanArray {
   }
 
   /**
+   * Convert the underlying Uint32Array buffer to a string.
    * @returns a string representation of the array
    * @allocates Returns a new string.
    */
