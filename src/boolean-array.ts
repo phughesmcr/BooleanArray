@@ -18,7 +18,7 @@ import {
   setBit,
   setRange,
 } from "./internal.ts";
-import { and, difference, equals, nand, nor, not, or, xnor, xor } from "./operations.ts";
+import { and, containsAll, difference, equals, intersects, nand, nor, not, or, xnor, xor } from "./operations.ts";
 import { assertIsSafeSize, assertIsSafeValue } from "./validation.ts";
 
 /** A fast boolean array backed by a Uint32Array */
@@ -139,6 +139,360 @@ export class BooleanArray {
     const copy = new BooleanArray(this.size);
     copy.buffer.set(this.buffer);
     return copy;
+  }
+
+  /**
+   * Copy this BooleanArray into a preallocated destination.
+   * @param out the destination BooleanArray
+   * @returns `out` for chaining
+   * @throws {RangeError} if `out` has a different size
+   * @allocates Does not allocate when `out` is preallocated.
+   */
+  cloneInto(out: BooleanArray): BooleanArray {
+    return out.copyFrom(this);
+  }
+
+  /**
+   * Copy raw Uint32 words into this BooleanArray's preallocated buffer.
+   * Smaller sources zero-fill remaining words; larger sources are rejected.
+   * @param source the source ArrayLike of Uint32 words
+   * @returns `this` for chaining
+   * @throws {TypeError} if `source` is not an ArrayLike<number>
+   * @throws {TypeError} if any source word is not a safe integer
+   * @throws {RangeError} if any source word is outside Uint32 range
+   * @throws {RangeError} if `source.length` exceeds this array's word length
+   * @allocates Does not allocate when the destination is preallocated.
+   */
+  copyFromUint32Array(source: ArrayLike<number>): this {
+    if (source == null || typeof source.length !== "number") {
+      throw new TypeError('"source" must be an ArrayLike<number> (e.g., Uint32Array or number[]).');
+    }
+    if (typeof source === "string") {
+      throw new TypeError('"source" must be an ArrayLike<number>, not a string.');
+    }
+    if (source.length > this.wordLength) {
+      throw new RangeError(
+        `Input array length (${source.length}) exceeds expected buffer length (${this.wordLength}) for a BooleanArray of size ${this.size}. Smaller arrays are zero-padded, but larger arrays would lose data.`,
+      );
+    }
+
+    const sourceLength = source.length;
+    const buffer = this.buffer;
+    if (Array.isArray(source)) {
+      for (let i = 0; i < sourceLength; i++) {
+        const word = source[i] as number;
+        const uint32Word = word >>> 0;
+        if (word !== uint32Word) {
+          if (!Number.isSafeInteger(word)) {
+            throw new TypeError('"source" must contain only safe integer Uint32 values.');
+          }
+          if (word < 0) {
+            throw new RangeError('"source" values must be greater than or equal to 0.');
+          }
+          if (word > MAX_UINT32) {
+            throw new RangeError('"source" values must be less than or equal to 0xFFFFFFFF.');
+          }
+        }
+      }
+
+      for (let i = 0; i < sourceLength; i++) {
+        buffer[i] = source[i]! >>> 0;
+      }
+      for (let i = sourceLength; i < this.wordLength; i++) {
+        buffer[i] = 0;
+      }
+    } else {
+      for (let i = 0; i < sourceLength; i++) {
+        const word = source[i] as number;
+        if (!Number.isSafeInteger(word)) {
+          throw new TypeError('"source" must contain only safe integer Uint32 values.');
+        }
+        if (word < 0) {
+          throw new RangeError('"source" values must be greater than or equal to 0.');
+        }
+        if (word > MAX_UINT32) {
+          throw new RangeError('"source" values must be less than or equal to 0xFFFFFFFF.');
+        }
+      }
+
+      if (source !== buffer) {
+        for (let i = 0; i < sourceLength; i++) {
+          buffer[i] = source[i] as number;
+        }
+        for (let i = sourceLength; i < this.wordLength; i++) {
+          buffer[i] = 0;
+        }
+      }
+    }
+    if (this.bitsInLastChunk > 0) {
+      this.buffer[this.wordLength - 1]! &= this.lastChunkMask;
+    }
+
+    return this;
+  }
+
+  /**
+   * Replace this array's contents from positional 0/1 bytes.
+   * Smaller sources zero-fill remaining bits; larger sources are rejected.
+   * @param source the source ArrayLike of 0/1 byte values
+   * @returns `this` for chaining
+   * @throws {TypeError} if `source` is not an ArrayLike<number>
+   * @throws {TypeError} if any source value is not a number
+   * @throws {RangeError} if any source value is not 0 or 1
+   * @throws {RangeError} if `source.length` exceeds this array's size
+   * @allocates Does not allocate when the destination is preallocated.
+   */
+  copyFromUint8Array(source: ArrayLike<number>): this {
+    if (source == null || typeof source.length !== "number") {
+      throw new TypeError('"source" must be an ArrayLike<0 | 1> (e.g., Uint8Array or number[]).');
+    }
+    if (typeof source === "string") {
+      throw new TypeError('"source" must be an ArrayLike<0 | 1>, not a string.');
+    }
+    if (source.length > this.size) {
+      throw new RangeError(
+        `Input array length (${source.length}) exceeds BooleanArray size (${this.size}). Smaller arrays are zero-padded, but larger arrays would lose data.`,
+      );
+    }
+
+    const length = source.length;
+    for (let i = 0; i < length; i++) {
+      const byte = source[i];
+      if (typeof byte !== "number") {
+        throw new TypeError('"source" must contain only numeric 0/1 byte values.');
+      }
+      if (byte !== 0 && byte !== 1) {
+        throw new RangeError(`Byte value at index ${i} must be 0 or 1.`);
+      }
+    }
+
+    this.clear();
+    const buffer = this.buffer;
+    const shift = CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
+    for (let i = 0; i < length; i++) {
+      if (source[i] === 1) {
+        buffer[i >>> shift]! |= 1 << (i & mask);
+      }
+    }
+
+    return this;
+  }
+
+  /**
+   * Copy raw Uint32 words from this BooleanArray into a preallocated output buffer.
+   * Only `wordLength` words are written; extra output words are left unchanged.
+   * @param out the destination Uint32Array with length >= this.wordLength
+   * @returns `out` for chaining/interoperability
+   * @throws {TypeError} if `out` is not a Uint32Array
+   * @throws {RangeError} if `out.length` is smaller than this array's word length
+   * @allocates Does not allocate when `out` is preallocated.
+   */
+  copyToUint32Array(out: Uint32Array): Uint32Array {
+    if (!(out instanceof Uint32Array)) {
+      throw new TypeError('"out" must be a Uint32Array.');
+    }
+    if (out.length < this.wordLength) {
+      throw new RangeError(
+        `"out" length must be greater than or equal to this BooleanArray's word length (${this.wordLength}).`,
+      );
+    }
+
+    const lastIndex = this.wordLength - 1;
+    for (let i = 0; i < lastIndex; i++) {
+      out[i] = this.buffer[i]!;
+    }
+    out[lastIndex] = (this.buffer[lastIndex]! & this.lastChunkMask) >>> 0;
+    return out;
+  }
+
+  /**
+   * Copy this full BooleanArray as positional 0/1 bytes into a preallocated output buffer.
+   * Extra output bytes are left unchanged.
+   * @param out the destination Uint8Array with length >= this.size
+   * @returns `out` for chaining/interoperability
+   * @throws {TypeError} if `out` is not a Uint8Array
+   * @throws {RangeError} if `out.length` is smaller than this array's size
+   * @allocates Does not allocate when `out` is preallocated.
+   */
+  copyToUint8Array(out: Uint8Array): Uint8Array {
+    if (!(out instanceof Uint8Array)) {
+      throw new TypeError('"out" must be a Uint8Array.');
+    }
+    if (out.length < this.size) {
+      throw new RangeError(`"out" length must be greater than or equal to this BooleanArray's size (${this.size}).`);
+    }
+
+    const buffer = this.buffer;
+    const mask = CHUNK_MASK;
+    const shift = CHUNK_SHIFT;
+    let currentChunkIndex = -1;
+    let currentChunkValue = 0;
+
+    for (let i = 0; i < this.size; i++) {
+      const chunkForThisBit = i >>> shift;
+      if (chunkForThisBit !== currentChunkIndex) {
+        currentChunkIndex = chunkForThisBit;
+        currentChunkValue = buffer[currentChunkIndex]!;
+      }
+      out[i] = (currentChunkValue >>> (i & mask)) & 1;
+    }
+
+    return out;
+  }
+
+  /**
+   * Replace this array's contents from booleans or truthy indices.
+   * If the first element is a boolean, values are copied by position.
+   * If the first element is a number, each value is treated as an index to set true.
+   * @param source the source ArrayLike of booleans or indices
+   * @returns `this` for chaining
+   * @throws {TypeError} if `source` is not an ArrayLike<number | boolean>
+   * @throws {RangeError} if a boolean source length exceeds this array's size
+   * @throws {TypeError} if source elements are mixed or invalid
+   * @throws {RangeError} if any numeric index is out of bounds
+   * @allocates Does not allocate when the destination is preallocated.
+   */
+  copyFromArray(source: ArrayLike<number | boolean>): this {
+    if (source == null || typeof source.length !== "number") {
+      throw new TypeError('"source" must be an ArrayLike<number | boolean>.');
+    }
+    if (typeof source === "string") {
+      throw new TypeError('"source" must be an ArrayLike<number | boolean>, not a string.');
+    }
+    const length = source.length;
+    if (length === 0) {
+      this.clear();
+      return this;
+    }
+
+    const first = source[0];
+    const sourceKind = typeof first;
+    if (sourceKind !== "boolean" && sourceKind !== "number") {
+      throw new TypeError('"source" must be an ArrayLike of numbers or booleans.');
+    }
+    if (sourceKind === "boolean" && length > this.size) {
+      throw new RangeError(`Boolean "source" must be smaller than or equal to ${this.size}.`);
+    }
+
+    const size = this.size;
+    for (let i = 0; i < length; i++) {
+      const bit = source[i];
+      const validType = sourceKind === "boolean" ? typeof bit === "boolean" : typeof bit === "number";
+      if (!validType) {
+        throw new TypeError(
+          sourceKind === "boolean"
+            ? '"source" must be an ArrayLike of booleans.'
+            : '"source" must be an ArrayLike of numbers.',
+        );
+      }
+      if (sourceKind === "number" && assertIsSafeValue(bit as number) >= size) {
+        throw new RangeError(`Index ${bit} is out of bounds for array size ${size}.`);
+      }
+    }
+
+    this.clear();
+    const shift = CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
+    const buffer = this.buffer;
+    if (sourceKind === "boolean") {
+      for (let i = 0; i < length; i++) {
+        if (source[i] as boolean) {
+          buffer[i >>> shift]! |= 1 << (i & mask);
+        }
+      }
+    } else {
+      for (let i = 0; i < length; i++) {
+        const index = source[i] as number;
+        buffer[index >>> shift]! |= 1 << (index & mask);
+      }
+    }
+
+    return this;
+  }
+
+  /**
+   * Replace this array's contents from objects whose key value is a bit index.
+   * @param key the object key containing the bit index
+   * @param source the source ArrayLike of objects
+   * @returns `this` for chaining
+   * @throws {TypeError} if `source` is not an ArrayLike
+   * @throws {TypeError} if `key` is null or undefined
+   * @throws {TypeError} if any key value is not a safe integer
+   * @throws {RangeError} if any key value is out of bounds
+   * @allocates Does not allocate when the destination is preallocated.
+   */
+  copyFromObjects<T>(key: keyof T, source: ArrayLike<T>): this {
+    if (source == null || typeof source.length !== "number") {
+      throw new TypeError('"source" must be an ArrayLike of objects.');
+    }
+    if (typeof source === "string") {
+      throw new TypeError('"source" must be an ArrayLike of objects, not a string.');
+    }
+    if (key == null) {
+      throw new TypeError('"key" must not be null or undefined.');
+    }
+
+    const size = this.size;
+    for (let i = 0; i < source.length; i++) {
+      const obj = source[i];
+      const index = obj?.[key] as number;
+      if (assertIsSafeValue(index) >= size) {
+        throw new RangeError(`Index ${index} is out of bounds for array size ${size}.`);
+      }
+    }
+
+    this.clear();
+    return this.setFromObjects(key, source);
+  }
+
+  /**
+   * Set bits from objects whose key value is a bit index (additive, zero-allocation bulk set).
+   * Only modifies the specified indices; all other bits remain unchanged.
+   * @param key the object key containing the bit index
+   * @param source the source ArrayLike of objects
+   * @param value the boolean value to set [default = true]
+   * @returns `this` for chaining
+   * @throws {TypeError} if `source` is not an ArrayLike
+   * @throws {TypeError} if `key` is null or undefined
+   * @throws {TypeError} if any key value is not a safe integer
+   * @throws {RangeError} if any key value is out of bounds
+   * @allocates Does not allocate when the destination is preallocated.
+   */
+  setFromObjects<T>(key: keyof T, source: ArrayLike<T>, value: boolean = true): this {
+    if (source == null || typeof source.length !== "number") {
+      throw new TypeError('"source" must be an ArrayLike of objects.');
+    }
+    if (typeof source === "string") {
+      throw new TypeError('"source" must be an ArrayLike of objects, not a string.');
+    }
+    if (key == null) {
+      throw new TypeError('"key" must not be null or undefined.');
+    }
+
+    const size = this.size;
+    for (let i = 0; i < source.length; i++) {
+      const obj = source[i];
+      const index = obj?.[key] as number;
+      if (assertIsSafeValue(index) >= size) {
+        throw new RangeError(`Index ${index} is out of bounds for array size ${size}.`);
+      }
+    }
+
+    const shift = CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
+    const buffer = this.buffer;
+    for (let i = 0; i < source.length; i++) {
+      const index = source[i]?.[key] as number;
+      const bitMask = 1 << (index & mask);
+      if (value) {
+        buffer[index >>> shift]! |= bitMask;
+      } else {
+        buffer[index >>> shift]! &= ~bitMask;
+      }
+    }
+
+    return this;
   }
 
   /**
@@ -271,6 +625,28 @@ export class BooleanArray {
     return equals(this, other);
   }
 
+  /**
+   * Check whether this BooleanArray shares at least one truthy bit with another.
+   * @param other the BooleanArray to compare with
+   * @returns `true` if both arrays have any truthy bit at the same index
+   * @throws {RangeError} if the arrays have different sizes
+   * @allocates Does not allocate.
+   */
+  intersects(other: BooleanArray): boolean {
+    return intersects(this, other);
+  }
+
+  /**
+   * Check whether every truthy bit in `subset` is also truthy in this array.
+   * @param subset the BooleanArray whose truthy bits must be present
+   * @returns `true` if this array contains all truthy bits from `subset`
+   * @throws {RangeError} if the arrays have different sizes
+   * @allocates Does not allocate.
+   */
+  containsAll(subset: BooleanArray): boolean {
+    return containsAll(this, subset);
+  }
+
   fill(value: boolean): this {
     this.buffer.fill(value ? MAX_UINT32 : 0);
     // Mask off any excess bits in the last chunk if needed
@@ -391,6 +767,51 @@ export class BooleanArray {
       const offset = index & mask;
       out[i] = (currentChunkValue & (1 << offset)) !== 0;
     }
+    return this;
+  }
+
+  /**
+   * Copy boolean values as 0/1 bytes into a preallocated Uint8Array.
+   * @param startIndex the start index to read from
+   * @param count the number of booleans to read
+   * @param out the destination Uint8Array with length >= count
+   * @returns `this` for chaining
+   * @throws {TypeError} if `out` is not a Uint8Array
+   * @throws {RangeError} if `out.length` is smaller than `count`
+   * @throws {RangeError} if the requested range exceeds the array size
+   * @allocates Does not allocate when `out` is preallocated.
+   */
+  getUint8Into(startIndex: number, count: number, out: Uint8Array): this {
+    if (!(out instanceof Uint8Array)) {
+      throw new TypeError('"out" must be a Uint8Array.');
+    }
+    if (count === 0) return this;
+    if (assertIsSafeValue(startIndex) + assertIsSafeValue(count) > this.size) {
+      throw new RangeError(
+        `Range [${startIndex}, ${startIndex + count}) exceeds array size ${this.size}.`,
+      );
+    }
+    if (out.length < count) {
+      throw new RangeError('"out" length must be greater than or equal to "count".');
+    }
+
+    const buffer = this.buffer;
+    const mask = CHUNK_MASK;
+    const shift = CHUNK_SHIFT;
+    let currentChunkIndex = -1;
+    let currentChunkValue = 0;
+
+    for (let i = 0; i < count; i++) {
+      const index = startIndex + i;
+      const chunkForThisBit = index >>> shift;
+      if (chunkForThisBit !== currentChunkIndex) {
+        currentChunkIndex = chunkForThisBit;
+        currentChunkValue = buffer[currentChunkIndex]!;
+      }
+      const offset = index & mask;
+      out[i] = (currentChunkValue >>> offset) & 1;
+    }
+
     return this;
   }
 
@@ -828,8 +1249,9 @@ export class BooleanArray {
     const mask = CHUNK_MASK;
     const buffer = this.buffer;
     const size = this.size;
+    const length = indices.length;
 
-    for (let i = 0; i < indices.length; i++) {
+    for (let i = 0; i < length; i++) {
       const index = indices[i]!;
       if (!Number.isSafeInteger(index)) {
         throw new TypeError(`Index at position ${i} must be a safe integer.`);
@@ -837,7 +1259,10 @@ export class BooleanArray {
       if (index < 0 || index >= size) {
         throw new RangeError(`Index ${index} is out of bounds for array size ${size}.`);
       }
+    }
 
+    for (let i = 0; i < length; i++) {
+      const index = indices[i]!;
       const chunk = index >>> shift;
       const bitMask = 1 << (index & mask);
       if (value) {
@@ -952,7 +1377,21 @@ export class BooleanArray {
    * @allocates Creates a generator object. Use {@link forEach} for zero-allocation iteration.
    */
   *values(): IterableIterator<boolean> {
-    yield* this;
+    const buffer = this.buffer;
+    const mask = CHUNK_MASK;
+    const shift = CHUNK_SHIFT;
+    let currentChunkIndex = -1;
+    let currentChunkValue = 0;
+
+    for (let i = 0; i < this.size; i++) {
+      const chunkForThisBit = i >>> shift;
+      if (chunkForThisBit !== currentChunkIndex) {
+        currentChunkIndex = chunkForThisBit;
+        currentChunkValue = buffer[currentChunkIndex]!;
+      }
+      const offset = i & mask;
+      yield (currentChunkValue & (1 << offset)) !== 0;
+    }
   }
 
   /**

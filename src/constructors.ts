@@ -1,7 +1,4 @@
 import { BooleanArray } from "./boolean-array.ts";
-import { CHUNK_MASK, CHUNK_SHIFT } from "./constants.ts";
-import { getChunkCount } from "./internal.ts";
-import { assertIsSafeSize, assertIsSafeValue } from "./validation.ts";
 
 /**
  * Create a BooleanArray from an array of booleans or indices.
@@ -10,8 +7,8 @@ import { assertIsSafeSize, assertIsSafeValue } from "./validation.ts";
  * @returns A new BooleanArray instance
  * @throws {RangeError} If `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
  * @throws {TypeError} If `size` is not a safe value
- * @throws {TypeError} If `arr` is not an array
- * @throws {RangeError} If `arr.length` is larger than `size`
+ * @throws {TypeError} If `arr` is not an ArrayLike<number | boolean>
+ * @throws {RangeError} If a boolean input is longer than `size`, or if any numeric index is out of bounds
  * @see {@link assertIsSafeValue}
  *
  * @example
@@ -23,43 +20,14 @@ import { assertIsSafeSize, assertIsSafeValue } from "./validation.ts";
  * console.log(boolArray.get(1)); // true
  * ```
  */
-export function fromArray(size: number, arr: Array<number | boolean>): BooleanArray {
-  if (!Array.isArray(arr)) {
-    throw new TypeError('"arr" must be an array.');
+export function fromArray(size: number, arr: ArrayLike<number | boolean>): BooleanArray {
+  if (arr == null || typeof arr.length !== "number") {
+    throw new TypeError('"arr" must be an ArrayLike<number | boolean>.');
   }
-  if (arr.length > size) {
-    throw new RangeError(`"arr" must be smaller than or equal to ${size}.`);
+  if (typeof arr === "string") {
+    throw new TypeError('"arr" must be an ArrayLike<number | boolean>, not a string.');
   }
-
-  const pool = new BooleanArray(size);
-
-  if (arr.length === 0) {
-    return pool;
-  } else if (typeof arr[0] === "boolean") {
-    for (let i = 0; i < arr.length; i++) {
-      const bit = arr[i]!;
-      if (typeof bit !== "boolean") {
-        throw new TypeError('"arr" must be an array of booleans.');
-      }
-      const chunk = i >>> CHUNK_SHIFT;
-      const mask = 1 << (i & CHUNK_MASK);
-      pool.buffer[chunk]! |= bit ? mask : 0;
-    }
-  } else if (typeof arr[0] === "number") {
-    for (let i = 0; i < arr.length; i++) {
-      const bit = arr[i]! as number;
-      if (assertIsSafeValue(bit) >= size) {
-        throw new RangeError(`Index ${bit} is out of bounds for array size ${size}.`);
-      }
-      const chunk = bit >>> CHUNK_SHIFT;
-      const mask = 1 << (bit & CHUNK_MASK);
-      pool.buffer[chunk]! |= mask;
-    }
-  } else {
-    throw new TypeError('"arr" must be an array of numbers or booleans.');
-  }
-
-  return pool;
+  return new BooleanArray(size).copyFromArray(arr);
 }
 
 /**
@@ -75,35 +43,35 @@ export function fromArray(size: number, arr: Array<number | boolean>): BooleanAr
  * @note Arrays smaller than the expected buffer length are automatically zero-padded
  */
 export function fromUint32Array(size: number, arr: ArrayLike<number>): BooleanArray {
-  assertIsSafeSize(size);
   if (arr == null || typeof arr.length !== "number") {
     throw new TypeError('"arr" must be an ArrayLike<number> (e.g., Uint32Array or number[]).');
   }
-  // Reject strings explicitly (they have .length but aren't numeric arrays)
   if (typeof arr === "string") {
     throw new TypeError('"arr" must be an ArrayLike<number>, not a string.');
   }
+  return new BooleanArray(size).copyFromUint32Array(arr);
+}
 
-  const expectedBufferLength = getChunkCount(size);
-  if (arr.length > expectedBufferLength) {
-    throw new RangeError(
-      `Input array length (${arr.length}) exceeds expected buffer length (${expectedBufferLength}) for a BooleanArray of size ${size}. Smaller arrays are zero-padded, but larger arrays would lose data.`,
-    );
+/**
+ * Create a BooleanArray from positional 0/1 bytes.
+ * @param size The size of the BooleanArray
+ * @param arr The ArrayLike of 0/1 byte values to create the BooleanArray from
+ * @returns A new BooleanArray instance
+ * @throws {RangeError} If `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
+ * @throws {TypeError} If `size` is not a safe value
+ * @throws {RangeError} If `arr.length` exceeds `size` (smaller arrays are zero-padded)
+ * @throws {TypeError} If `arr` is not an ArrayLike<number>
+ * @throws {RangeError} If any byte value is not 0 or 1
+ * @note Arrays smaller than `size` are automatically zero-padded
+ */
+export function fromUint8Array(size: number, arr: ArrayLike<number>): BooleanArray {
+  if (arr == null || typeof arr.length !== "number") {
+    throw new TypeError('"arr" must be an ArrayLike<0 | 1> (e.g., Uint8Array or number[]).');
   }
-
-  for (let i = 0; i < arr.length; i++) {
-    assertIsSafeValue(arr[i] as number);
+  if (typeof arr === "string") {
+    throw new TypeError('"arr" must be an ArrayLike<0 | 1>, not a string.');
   }
-
-  const pool = new BooleanArray(size); // Creates a zeroed buffer of the correct length
-  pool.buffer.set(arr); // Copies content from arr to pool.buffer
-
-  // Ensure unused bits in the last chunk are zeroed out
-  if (pool.bitsInLastChunk > 0) {
-    pool.buffer[pool.wordLength - 1]! &= pool.lastChunkMask;
-  }
-
-  return pool;
+  return new BooleanArray(size).copyFromUint8Array(arr);
 }
 
 /**
@@ -139,19 +107,5 @@ export function fromObjects<T>(size: number, key: keyof T, objs: T[]): BooleanAr
   if (key == null) {
     throw new TypeError('"key" must not be null or undefined.');
   }
-  const result = new BooleanArray(size);
-  if (objs.length === 0) {
-    return result;
-  }
-  for (let i = 0; i < objs.length; i++) {
-    const obj = objs[i];
-    const index = obj?.[key] as number; // assertIsSafeValue will throw if not a number
-    if (assertIsSafeValue(index) >= size) {
-      throw new RangeError(`Index ${index} is out of bounds for array size ${size}.`);
-    }
-    const chunk = index >>> CHUNK_SHIFT;
-    const mask = 1 << (index & CHUNK_MASK);
-    result.buffer[chunk]! |= mask;
-  }
-  return result;
+  return new BooleanArray(size).copyFromObjects(key, objs);
 }

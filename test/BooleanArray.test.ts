@@ -171,6 +171,19 @@ Deno.test("BooleanArray - Basic Operations", async (t) => {
     assertEquals(clone.get(50), false);
     assertEquals(array.get(50), true);
   });
+
+  await t.step("should clone into a preallocated output array", () => {
+    const array = new BooleanArray(33);
+    array.set(0, true).set(31, true).set(32, true);
+    const out = new BooleanArray(33);
+
+    assertEquals(array.cloneInto(out), out);
+    assertEquals(out.equals(array), true);
+
+    out.toggle(31);
+    assertEquals(array.get(31), true);
+    assertEquals(out.get(31), false);
+  });
 });
 
 Deno.test("BooleanArray - Bitwise Operations", async (t) => {
@@ -568,6 +581,13 @@ Deno.test("BooleanArray - Factory Functions", async (t) => {
     }
   });
 
+  await t.step("should create from typed numeric index input", () => {
+    const indices = new Uint32Array([0, 31, 32, 63]);
+    const array = fromArray(64, indices);
+
+    assertEquals([...array.truthyIndices()], [0, 31, 32, 63]);
+  });
+
   await t.step("should allow empty initializer array", () => {
     const array = fromArray(100, []);
     assertEquals(array.size, 100);
@@ -823,6 +843,9 @@ Deno.test("BooleanArray - Factory Functions", async (t) => {
     assertEquals(arr.get(1), true);
     assertEquals(arr.get(2), true);
     assertEquals(arr.get(9), true);
+
+    const repeated = fromArray(4, [0, 1, 1, 2, 2, 2, 3, 3]);
+    assertEquals([...repeated.truthyIndices()], [0, 1, 2, 3]);
   });
 });
 
@@ -1212,6 +1235,57 @@ Deno.test("BooleanArray - getInto", async (t) => {
     assertThrows(() => arr.getInto(8, 5, out), RangeError); // Exceeds size
     assertThrows(() => arr.getInto(-1, 5, out), RangeError);
     assertThrows(() => arr.getInto(1.5, 5, out), TypeError);
+  });
+});
+
+Deno.test("BooleanArray - getUint8Into", async (t) => {
+  await t.step("should copy range into preallocated Uint8Array", () => {
+    const arr = BooleanArray.fromArray(10, [1, 3, 5, 7, 9]);
+    const out = new Uint8Array(5);
+    const result = arr.getUint8Into(0, 5, out);
+
+    assertEquals(result, arr);
+    assertEquals(Array.from(out), [0, 1, 0, 1, 0]);
+  });
+
+  await t.step("should copy across chunk boundaries", () => {
+    const arr = BooleanArray.fromArray(100, [30, 31, 32, 33, 34]);
+    const out = new Uint8Array(10);
+    arr.getUint8Into(28, 10, out);
+    assertEquals(Array.from(out), [0, 0, 1, 1, 1, 1, 1, 0, 0, 0]);
+  });
+
+  await t.step("should handle zero-length as no-op", () => {
+    const arr = new BooleanArray(10);
+    const out = new Uint8Array([9, 9]);
+    arr.getUint8Into(5, 0, out);
+    assertEquals(Array.from(out), [9, 9]);
+  });
+
+  await t.step("should validate out parameter", () => {
+    const arr = new BooleanArray(10);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => arr.getUint8Into(0, 5, null), TypeError);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => arr.getUint8Into(0, 5, "not a Uint8Array"), TypeError);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => arr.getUint8Into(0, 5, []), TypeError);
+  });
+
+  await t.step("should validate output length", () => {
+    const arr = new BooleanArray(10);
+    const tooSmall = new Uint8Array(3);
+    assertThrows(() => arr.getUint8Into(0, 5, tooSmall), RangeError);
+  });
+
+  await t.step("should validate range bounds", () => {
+    const arr = new BooleanArray(10);
+    const out = new Uint8Array(10);
+
+    assertThrows(() => arr.getUint8Into(8, 5, out), RangeError);
+    assertThrows(() => arr.getUint8Into(-1, 5, out), RangeError);
+    assertThrows(() => arr.getUint8Into(1.5, 5, out), TypeError);
+    assertThrows(() => arr.getUint8Into(0, 5.5, out), TypeError);
   });
 });
 
@@ -2382,6 +2456,53 @@ Deno.test("BooleanArray - falsyIndicesInto", async (t) => {
   });
 });
 
+Deno.test("BooleanArray - setFromObjects", async (t) => {
+  await t.step("should set object key indices without clearing existing bits", () => {
+    const arr = BooleanArray.fromArray(16, [1, 7]);
+    const events = [{ entity: 3 }, { entity: 9 }, { entity: 12 }];
+
+    const result = arr.setFromObjects("entity", events);
+
+    assertEquals(result, arr);
+    assertEquals([...arr.truthyIndices()], [1, 3, 7, 9, 12]);
+  });
+
+  await t.step("should clear object key indices when value is false", () => {
+    const arr = BooleanArray.fromArray(16, [1, 3, 7, 9, 12]);
+    const events = [{ entity: 3 }, { entity: 12 }];
+
+    arr.setFromObjects("entity", events, false);
+
+    assertEquals([...arr.truthyIndices()], [1, 7, 9]);
+  });
+
+  await t.step("should handle empty object input as a no-op", () => {
+    const arr = BooleanArray.fromArray(8, [1, 3, 5]);
+
+    arr.setFromObjects("entity", [] as Array<{ entity: number }>);
+
+    assertEquals([...arr.truthyIndices()], [1, 3, 5]);
+  });
+
+  await t.step("should validate object input before mutating destination", () => {
+    const arr = BooleanArray.fromArray(10, [7]);
+
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => arr.setFromObjects("entity", null), TypeError);
+    assertEquals([...arr.truthyIndices()], [7]);
+
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => arr.setFromObjects(null, [{ entity: 1 }]), TypeError);
+    assertEquals([...arr.truthyIndices()], [7]);
+
+    assertThrows(() => arr.setFromObjects("entity", [{ entity: 1 }, { entity: 10 }]), RangeError);
+    assertEquals([...arr.truthyIndices()], [7]);
+
+    assertThrows(() => arr.setFromObjects("entity", [{ entity: 1 }, { entity: "2" }]), TypeError);
+    assertEquals([...arr.truthyIndices()], [7]);
+  });
+});
+
 Deno.test("BooleanArray - copyFrom", async (t) => {
   await t.step("should copy all bits from source", () => {
     const src = BooleanArray.fromArray(64, [0, 10, 31, 32, 63]);
@@ -2611,6 +2732,16 @@ Deno.test("BooleanArray - setFromIndices", async (t) => {
     assertThrows(() => arr.setFromIndices([0, 10]), RangeError); // 10 is out of bounds
     assertThrows(() => arr.setFromIndices([-1, 5]), RangeError);
     assertThrows(() => arr.setFromIndices([100]), RangeError);
+  });
+
+  await t.step("should validate indices before mutating destination", () => {
+    const arr = BooleanArray.fromArray(10, [7]);
+
+    assertThrows(() => arr.setFromIndices([1, 2, 10]), RangeError);
+    assertEquals([...arr.truthyIndices()], [7]);
+
+    assertThrows(() => arr.setFromIndices([3, 4, NaN], false), TypeError);
+    assertEquals([...arr.truthyIndices()], [7]);
   });
 
   await t.step("should handle chunk boundaries", () => {

@@ -2,7 +2,7 @@
 /// <reference lib="dom" />
 
 import { assertEquals, assertThrows } from "jsr:@std/assert@^1.0.10";
-import { BooleanArray, fromArray, fromObjects, fromUint32Array, getChunkCount } from "../mod.ts";
+import { BooleanArray, fromArray, fromObjects, fromUint32Array, fromUint8Array, getChunkCount } from "../mod.ts";
 import { assertUnusedBitsZero } from "./helpers.ts";
 
 Deno.test("BooleanArray - Factory Functions", async (t) => {
@@ -225,6 +225,49 @@ Deno.test("BooleanArray - Factory Functions", async (t) => {
     assertThrows(() => fromUint32Array(64, ["not", "numbers"]), TypeError);
   });
 
+  await t.step("should create from Uint8Array positional bytes", () => {
+    const array = fromUint8Array(10, new Uint8Array([1, 0, 1, 1]));
+
+    assertEquals([...array.values()], [true, false, true, true, false, false, false, false, false, false]);
+    assertEquals(array.getCount(true), 3);
+    assertUnusedBitsZero(array, "fromUint8Array");
+  });
+
+  await t.step("should expose fromUint8Array on BooleanArray static export", () => {
+    const array = BooleanArray.fromUint8Array(5, [0, 1, 0, 1, 0]);
+
+    assertEquals([...array.values()], [false, true, false, true, false]);
+  });
+
+  await t.step("should copy from Uint8Array into a reusable destination", () => {
+    const array = new BooleanArray(8).fill(true);
+    const result = array.copyFromUint8Array(new Uint8Array([1, 0, 0, 1]));
+
+    assertEquals(result, array);
+    assertEquals([...array.values()], [true, false, false, true, false, false, false, false]);
+  });
+
+  await t.step("should clear destination for empty Uint8Array input", () => {
+    const array = new BooleanArray(4).fill(true);
+
+    array.copyFromUint8Array(new Uint8Array(0));
+
+    assertEquals([...array.values()], [false, false, false, false]);
+  });
+
+  await t.step("should validate Uint8Array input before mutating", () => {
+    const array = fromUint8Array(4, [1, 0, 1, 0]);
+
+    assertThrows(() => array.copyFromUint8Array([1, 2, 0]), RangeError);
+    assertEquals([...array.values()], [true, false, true, false]);
+    assertThrows(() => array.copyFromUint8Array([1, 0, 1, 0, 1]), RangeError);
+    assertEquals([...array.values()], [true, false, true, false]);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => fromUint8Array(4, "1010"), TypeError);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => array.copyFromUint8Array([1, "0"]), TypeError);
+  });
+
   await t.step("should create from object array", () => {
     const objs = [{ id: 0 }, { id: 2 }, { id: 4 }];
     const array = fromObjects(10, "id", objs);
@@ -264,6 +307,13 @@ Deno.test("BooleanArray - Factory Functions", async (t) => {
     assertEquals([...sparse.truthyIndices()], [0, 100, 500, 999]);
   });
 
+  await t.step("should accept typed numeric index inputs", () => {
+    const indices = new Uint32Array([0, 31, 32, 63]);
+    const arr = fromArray(64, indices);
+
+    assertEquals([...arr.truthyIndices()], [0, 31, 32, 63]);
+  });
+
   await t.step("should allow zero-length input arrays with size >= 1", () => {
     const arr = fromArray(1, []);
     assertEquals(arr.size, 1);
@@ -298,7 +348,7 @@ Deno.test("BooleanArray - Factory Functions", async (t) => {
     assertThrows(() => fromArray(10, ["bad"]), TypeError);
   });
 
-  await t.step("should throw when index array exceeds size", () => {
+  await t.step("should throw when a numeric index is out of bounds", () => {
     assertThrows(() => fromArray(5, [0, 1, 2, 3, 4, 5]), RangeError);
   });
 
@@ -319,6 +369,9 @@ Deno.test("BooleanArray - Factory Functions", async (t) => {
     assertEquals(arr.get(1), true);
     assertEquals(arr.get(2), true);
     assertEquals(arr.get(9), true);
+
+    const repeated = fromArray(4, [0, 1, 1, 2, 2, 2, 3, 3]);
+    assertEquals([...repeated.truthyIndices()], [0, 1, 2, 3]);
   });
 });
 
@@ -359,6 +412,241 @@ Deno.test("BooleanArray - fromUint32Array with number[]", async (t) => {
 
     // Verify unused bits are cleared
     assertUnusedBitsZero(arr, "fromUint32Array with number[]");
+  });
+});
+
+Deno.test("BooleanArray - copyFromUint32Array", async (t) => {
+  await t.step("should copy raw words into a preallocated BooleanArray", () => {
+    const out = new BooleanArray(64);
+    const result = out.copyFromUint32Array([255, 0x80000000]);
+
+    assertEquals(result, out);
+    for (let i = 0; i < 8; i++) {
+      assertEquals(out.get(i), true);
+    }
+    assertEquals(out.get(8), false);
+    assertEquals(out.get(63), true);
+  });
+
+  await t.step("should zero-pad when source is shorter than the destination buffer", () => {
+    const out = new BooleanArray(96);
+    out.fill(true);
+
+    out.copyFromUint32Array([1]);
+
+    assertEquals(out.get(0), true);
+    assertEquals(out.get(1), false);
+    assertEquals(out.get(32), false);
+    assertEquals(out.get(95), false);
+  });
+
+  await t.step("should clear unused bits in the last chunk", () => {
+    const out = new BooleanArray(35);
+
+    out.copyFromUint32Array([0xFFFFFFFF, 0xFFFFFFFF]);
+
+    assertEquals(out.get(32), true);
+    assertEquals(out.get(33), true);
+    assertEquals(out.get(34), true);
+    assertUnusedBitsZero(out, "copyFromUint32Array");
+  });
+
+  await t.step("should validate input before mutating destination", () => {
+    const out = new BooleanArray(64);
+    out.set(7, true);
+
+    assertThrows(() => out.copyFromUint32Array([1, 2, 3]), RangeError);
+    assertEquals(out.get(7), true);
+
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => out.copyFromUint32Array(null), TypeError);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => out.copyFromUint32Array("ab"), TypeError);
+    assertThrows(() => out.copyFromUint32Array([1, -1]), RangeError);
+    assertThrows(() => out.copyFromUint32Array([1, 1.5]), TypeError);
+  });
+});
+
+Deno.test("BooleanArray - copyToUint32Array", async (t) => {
+  await t.step("should copy raw words into a preallocated Uint32Array", () => {
+    const bits = BooleanArray.fromArray(64, [0, 31, 32, 63]);
+    const out = new Uint32Array(4);
+    out[2] = 123;
+    out[3] = 456;
+
+    const result = bits.copyToUint32Array(out);
+
+    assertEquals(result, out);
+    assertEquals(out[0], 0x80000001);
+    assertEquals(out[1], 0x80000001);
+    assertEquals(out[2], 123);
+    assertEquals(out[3], 456);
+  });
+
+  await t.step("should mask unused bits in the exported last chunk", () => {
+    const bits = BooleanArray.fromArray(35, [0, 32, 34]);
+    bits.buffer[1] = bits.buffer[1]! | 0xFFFFFFF8;
+    const out = new Uint32Array(2);
+
+    bits.copyToUint32Array(out);
+
+    assertEquals(out[0], 1);
+    assertEquals(out[1], 0b101);
+  });
+
+  await t.step("should validate output before writing", () => {
+    const bits = BooleanArray.fromArray(64, [0, 63]);
+    const out = new Uint32Array([99]);
+
+    assertThrows(() => bits.copyToUint32Array(out), RangeError);
+    assertEquals(out[0], 99);
+
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => bits.copyToUint32Array(null), TypeError);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => bits.copyToUint32Array([0, 0]), TypeError);
+  });
+});
+
+Deno.test("BooleanArray - copyToUint8Array", async (t) => {
+  await t.step("should copy positional bytes into a preallocated Uint8Array", () => {
+    const bits = BooleanArray.fromArray(6, [0, 2, 5]);
+    const out = new Uint8Array([9, 9, 9, 9, 9, 9, 77, 88]);
+
+    const result = bits.copyToUint8Array(out);
+
+    assertEquals(result, out);
+    assertEquals(Array.from(out), [1, 0, 1, 0, 0, 1, 77, 88]);
+  });
+
+  await t.step("should export the full logical size and ignore corrupted unused bits", () => {
+    const bits = BooleanArray.fromArray(35, [0, 32, 34]);
+    bits.buffer[1] = bits.buffer[1]! | 0xFFFFFFF8;
+    const out = new Uint8Array(35);
+
+    bits.copyToUint8Array(out);
+
+    assertEquals(out[0], 1);
+    assertEquals(out[31], 0);
+    assertEquals(out[32], 1);
+    assertEquals(out[33], 0);
+    assertEquals(out[34], 1);
+  });
+
+  await t.step("should validate output before writing", () => {
+    const bits = BooleanArray.fromArray(4, [0, 3]);
+    const out = new Uint8Array([99, 99, 99]);
+
+    assertThrows(() => bits.copyToUint8Array(out), RangeError);
+    assertEquals(Array.from(out), [99, 99, 99]);
+
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => bits.copyToUint8Array(null), TypeError);
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => bits.copyToUint8Array([0, 0, 0, 0]), TypeError);
+  });
+});
+
+Deno.test("BooleanArray - copyFromArray", async (t) => {
+  await t.step("should copy boolean values into a preallocated BooleanArray", () => {
+    const out = new BooleanArray(8);
+    out.fill(true);
+
+    const result = out.copyFromArray([true, false, true, false]);
+
+    assertEquals(result, out);
+    assertEquals([...out.get(0, 8)], [true, false, true, false, false, false, false, false]);
+  });
+
+  await t.step("should copy indices into a preallocated BooleanArray", () => {
+    const out = new BooleanArray(10);
+    out.fill(true);
+
+    out.copyFromArray([1, 3, 9]);
+
+    assertEquals([...out.truthyIndices()], [1, 3, 9]);
+  });
+
+  await t.step("should support typed index inputs without allocating a new BooleanArray", () => {
+    const out = new BooleanArray(64);
+    const indices = new Uint32Array([0, 31, 32, 63]);
+
+    out.copyFromArray(indices);
+
+    assertEquals([...out.truthyIndices()], [0, 31, 32, 63]);
+  });
+
+  await t.step("should allow duplicate numeric index streams longer than the destination size", () => {
+    const out = new BooleanArray(4);
+
+    out.copyFromArray([0, 1, 1, 2, 2, 2, 3, 3]);
+
+    assertEquals([...out.truthyIndices()], [0, 1, 2, 3]);
+  });
+
+  await t.step("should clear destination for empty input", () => {
+    const out = BooleanArray.fromArray(8, [1, 3, 5]);
+
+    out.copyFromArray([]);
+
+    assertEquals(out.isEmpty(), true);
+  });
+
+  await t.step("should validate input before mutating destination", () => {
+    const out = BooleanArray.fromArray(10, [7]);
+
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => out.copyFromArray(null), TypeError);
+    assertEquals([...out.truthyIndices()], [7]);
+
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => out.copyFromArray("bad"), TypeError);
+    assertEquals([...out.truthyIndices()], [7]);
+
+    assertThrows(() => out.copyFromArray([true, 1]), TypeError);
+    assertEquals([...out.truthyIndices()], [7]);
+
+    assertThrows(() => out.copyFromArray([1, 10]), RangeError);
+    assertEquals([...out.truthyIndices()], [7]);
+  });
+});
+
+Deno.test("BooleanArray - copyFromObjects", async (t) => {
+  await t.step("should copy object key indices into a preallocated BooleanArray", () => {
+    const out = new BooleanArray(10);
+    out.fill(true);
+    const events = [{ entity: 1 }, { entity: 3 }, { entity: 9 }];
+
+    const result = out.copyFromObjects("entity", events);
+
+    assertEquals(result, out);
+    assertEquals([...out.truthyIndices()], [1, 3, 9]);
+  });
+
+  await t.step("should clear destination for empty object input", () => {
+    const out = BooleanArray.fromArray(8, [1, 3, 5]);
+
+    out.copyFromObjects("entity", [] as Array<{ entity: number }>);
+
+    assertEquals(out.isEmpty(), true);
+  });
+
+  await t.step("should validate object input before mutating destination", () => {
+    const out = BooleanArray.fromArray(10, [7]);
+
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => out.copyFromObjects("entity", null), TypeError);
+    assertEquals([...out.truthyIndices()], [7]);
+
+    // @ts-expect-error - Testing runtime behavior
+    assertThrows(() => out.copyFromObjects(null, [{ entity: 1 }]), TypeError);
+    assertEquals([...out.truthyIndices()], [7]);
+
+    assertThrows(() => out.copyFromObjects("entity", [{ entity: 1 }, { entity: 10 }]), RangeError);
+    assertEquals([...out.truthyIndices()], [7]);
+
+    assertThrows(() => out.copyFromObjects("entity", [{ entity: 1 }, { entity: "2" }]), TypeError);
+    assertEquals([...out.truthyIndices()], [7]);
   });
 });
 

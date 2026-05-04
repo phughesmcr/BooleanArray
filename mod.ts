@@ -7,9 +7,29 @@
 
 import { BooleanArray } from "./src/boolean-array.ts";
 import { ALL_BITS_TRUE, CHUNK_MASK, CHUNK_SHIFT, EMPTY_ARRAY } from "./src/constants.ts";
-import { fromArray, fromObjects, fromUint32Array } from "./src/constructors.ts";
+import { fromArray, fromObjects, fromUint32Array, fromUint8Array } from "./src/constructors.ts";
 import { getChunk, getChunkCount, getChunkOffset, getLSBPosition, popcount } from "./src/internal.ts";
-import { and, difference, equals, nand, nor, not, or, xnor, xor } from "./src/operations.ts";
+import {
+  and,
+  andInto,
+  containsAll,
+  difference,
+  differenceInto,
+  equals,
+  intersects,
+  nand,
+  nandInto,
+  nor,
+  norInto,
+  not,
+  notInto,
+  or,
+  orInto,
+  xnor,
+  xnorInto,
+  xor,
+  xorInto,
+} from "./src/operations.ts";
 import { assertIsSafeSize, assertIsSafeValue, isSafeSize, isSafeValue } from "./src/validation.ts";
 
 const BooleanArrayUtils = {
@@ -20,15 +40,26 @@ const BooleanArrayUtils = {
   fromArray,
   fromObjects,
   fromUint32Array,
+  fromUint8Array,
   and,
+  andInto,
+  containsAll,
   difference,
+  differenceInto,
   equals,
+  intersects,
   nand,
+  nandInto,
   nor,
+  norInto,
   not,
+  notInto,
   or,
+  orInto,
   xnor,
+  xnorInto,
   xor,
+  xorInto,
   getChunk,
   getChunkCount,
   getChunkOffset,
@@ -48,6 +79,7 @@ type BooleanArrayStatics = {
   fromArray: typeof fromArray;
   fromObjects: typeof fromObjects;
   fromUint32Array: typeof fromUint32Array;
+  fromUint8Array: typeof fromUint8Array;
   getChunk: typeof getChunk;
   getChunkCount: typeof getChunkCount;
   getChunkOffset: typeof getChunkOffset;
@@ -63,6 +95,7 @@ const BooleanArrayExport = Object.assign(BooleanArray, {
   fromArray,
   fromObjects,
   fromUint32Array,
+  fromUint8Array,
   getChunk,
   getChunkCount,
   getChunkOffset,
@@ -73,30 +106,41 @@ const BooleanArrayExport = Object.assign(BooleanArray, {
 export {
   ALL_BITS_TRUE,
   and,
+  andInto,
   assertIsSafeSize,
   assertIsSafeValue,
   BooleanArrayExport as BooleanArray,
   BooleanArrayUtils,
   CHUNK_MASK,
   CHUNK_SHIFT,
+  containsAll,
   difference,
+  differenceInto,
   EMPTY_ARRAY,
   equals,
   fromArray,
   fromObjects,
   fromUint32Array,
+  fromUint8Array,
   getChunk,
   getChunkCount,
   getChunkOffset,
   getLSBPosition,
+  intersects,
   isSafeSize,
   isSafeValue,
   nand,
+  nandInto,
   nor,
+  norInto,
   not,
+  notInto,
   or,
+  orInto,
   popcount,
   xnor,
+  xnorInto,
   xor,
+  xorInto,
 };
 export default { BooleanArray: BooleanArrayExport, BooleanArrayUtils };

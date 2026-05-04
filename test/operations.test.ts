@@ -2,7 +2,29 @@
 /// <reference lib="dom" />
 
 import { assert, assertEquals, assertThrows } from "jsr:@std/assert@^1.0.10";
-import { and, BooleanArray, difference, equals, fromArray, nand, nor, not, or, xnor, xor } from "../mod.ts";
+import {
+  and,
+  andInto,
+  BooleanArray,
+  containsAll,
+  difference,
+  differenceInto,
+  equals,
+  fromArray,
+  intersects,
+  nand,
+  nandInto,
+  nor,
+  norInto,
+  not,
+  notInto,
+  or,
+  orInto,
+  xnor,
+  xnorInto,
+  xor,
+  xorInto,
+} from "../mod.ts";
 import { assertUnusedBitsZero } from "./helpers.ts";
 
 Deno.test("BooleanArray - Bitwise Operations", async (t) => {
@@ -267,6 +289,75 @@ Deno.test("BooleanArray - Functional Operations Non-Mutation", async (t) => {
   });
 });
 
+Deno.test("BooleanArray - Preallocated Bitwise Operations", async (t) => {
+  await t.step("should write binary operation results into a reusable output array", () => {
+    const a = fromArray(33, [0, 2, 31, 32]);
+    const b = fromArray(33, [1, 2, 31]);
+    const out = new BooleanArray(33);
+
+    assertEquals(andInto(a, b, out), out);
+    assertEquals(equals(out, and(a, b)), true);
+    assertUnusedBitsZero(out, "andInto");
+
+    assertEquals(orInto(a, b, out), out);
+    assertEquals(equals(out, or(a, b)), true);
+    assertUnusedBitsZero(out, "orInto");
+
+    assertEquals(xorInto(a, b, out), out);
+    assertEquals(equals(out, xor(a, b)), true);
+    assertUnusedBitsZero(out, "xorInto");
+
+    assertEquals(differenceInto(a, b, out), out);
+    assertEquals(equals(out, difference(a, b)), true);
+    assertUnusedBitsZero(out, "differenceInto");
+
+    assertEquals(nandInto(a, b, out), out);
+    assertEquals(equals(out, nand(a, b)), true);
+    assertUnusedBitsZero(out, "nandInto");
+
+    assertEquals(norInto(a, b, out), out);
+    assertEquals(equals(out, nor(a, b)), true);
+    assertUnusedBitsZero(out, "norInto");
+
+    assertEquals(xnorInto(a, b, out), out);
+    assertEquals(equals(out, xnor(a, b)), true);
+    assertUnusedBitsZero(out, "xnorInto");
+  });
+
+  await t.step("should write unary NOT into a reusable output array", () => {
+    const a = fromArray(33, [0, 2, 31, 32]);
+    const out = new BooleanArray(33);
+
+    assertEquals(notInto(a, out), out);
+    assertEquals(equals(out, not(a)), true);
+    assertUnusedBitsZero(out, "notInto");
+  });
+
+  await t.step("should allow output aliasing either input", () => {
+    const a = fromArray(8, [0, 1, 4]);
+    const b = fromArray(8, [1, 2, 4]);
+
+    const aliasedA = a.clone();
+    andInto(aliasedA, b, aliasedA);
+    assertEquals(equals(aliasedA, and(a, b)), true);
+
+    const aliasedB = b.clone();
+    orInto(a, aliasedB, aliasedB);
+    assertEquals(equals(aliasedB, or(a, b)), true);
+  });
+
+  await t.step("should validate input and output sizes", () => {
+    const a = new BooleanArray(32);
+    const b = new BooleanArray(64);
+    const out32 = new BooleanArray(32);
+    const out64 = new BooleanArray(64);
+
+    assertThrows(() => andInto(a, b, out32), RangeError, "Arrays must have the same size");
+    assertThrows(() => andInto(a, a, out64), RangeError, "Output array must have the same size");
+    assertThrows(() => notInto(a, out64), RangeError, "Output array must have the same size");
+  });
+});
+
 Deno.test("BooleanArray - Instance Operations Size Mismatch", async (t) => {
   await t.step("instance and should throw on size mismatch", () => {
     const a = new BooleanArray(32);
@@ -388,6 +479,58 @@ Deno.test("BooleanArray - Equals Properties", async (t) => {
 
     assertEquals(equals(a, b), false);
     assertEquals(a.equals(b), false);
+  });
+});
+
+Deno.test("BooleanArray - Zero-Allocation Relationship Queries", async (t) => {
+  await t.step("intersects should detect shared truthy bits", () => {
+    const a = BooleanArray.fromArray(65, [0, 32, 64]);
+    const b = BooleanArray.fromArray(65, [1, 32, 63]);
+    const c = BooleanArray.fromArray(65, [2, 33, 63]);
+
+    assertEquals(intersects(a, b), true);
+    assertEquals(a.intersects(b), true);
+    assertEquals(intersects(a, c), false);
+    assertEquals(a.intersects(c), false);
+  });
+
+  await t.step("intersects should ignore corrupted unused bits", () => {
+    const a = BooleanArray.fromArray(33, [0]);
+    const b = new BooleanArray(33);
+    b.buffer[1] = 0xFFFFFFFE;
+
+    assertEquals(intersects(a, b), false);
+    assertEquals(b.intersects(a), false);
+  });
+
+  await t.step("containsAll should detect subset relationships", () => {
+    const a = BooleanArray.fromArray(65, [0, 1, 32, 64]);
+    const subset = BooleanArray.fromArray(65, [1, 64]);
+    const missing = BooleanArray.fromArray(65, [1, 63]);
+
+    assertEquals(containsAll(a, subset), true);
+    assertEquals(a.containsAll(subset), true);
+    assertEquals(containsAll(a, missing), false);
+    assertEquals(a.containsAll(missing), false);
+  });
+
+  await t.step("containsAll should ignore corrupted unused bits", () => {
+    const a = BooleanArray.fromArray(33, [0, 32]);
+    const subset = BooleanArray.fromArray(33, [32]);
+    subset.buffer[1] = subset.buffer[1]! | 0xFFFFFFFE;
+
+    assertEquals(containsAll(a, subset), true);
+    assertEquals(a.containsAll(subset), true);
+  });
+
+  await t.step("relationship queries should throw on size mismatch", () => {
+    const a = new BooleanArray(32);
+    const b = new BooleanArray(64);
+
+    assertThrows(() => intersects(a, b), RangeError);
+    assertThrows(() => a.intersects(b), RangeError);
+    assertThrows(() => containsAll(a, b), RangeError);
+    assertThrows(() => a.containsAll(b), RangeError);
   });
 });
 
