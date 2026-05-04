@@ -69,6 +69,10 @@
     "prep": {
       "description": "Format, lint, and check the codebase",
       "command": "deno fmt && deno lint && deno check mod.ts src/**/*.ts test/**/*.test.ts bench/**/*.bench.ts"
+    },
+    "bench:allocations": {
+      "description": "Measure GC allocation pressure for hot BooleanArray APIs",
+      "command": "deno run --v8-flags=--expose-gc bench/gc_allocations.ts"
     }
   },
   "test": {

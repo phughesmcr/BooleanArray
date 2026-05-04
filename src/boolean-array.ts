@@ -199,8 +199,10 @@ export class BooleanArray {
         // Overlapping this-copy: use copyWithin for safe handling
         dstBuf.copyWithin(dstChunkStart, srcChunkStart, srcChunkStart + chunkCount);
       } else {
-        // Non-overlapping: use set with subarray
-        dstBuf.set(srcBuf.subarray(srcChunkStart, srcChunkStart + chunkCount), dstChunkStart);
+        // Non-overlapping: copy words directly to avoid allocating a subarray view.
+        for (let i = 0; i < chunkCount; i++) {
+          dstBuf[dstChunkStart + i] = srcBuf[srcChunkStart + i]!;
+        }
       }
 
       // Ensure unused bits in the last chunk are zeroed if we touched it

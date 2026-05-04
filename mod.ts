@@ -8,7 +8,7 @@
 import { BooleanArray } from "./src/boolean-array.ts";
 import { ALL_BITS_TRUE, CHUNK_MASK, CHUNK_SHIFT, EMPTY_ARRAY } from "./src/constants.ts";
 import { fromArray, fromObjects, fromUint32Array } from "./src/constructors.ts";
-import { getChunk, getChunkCount, getChunkOffset } from "./src/internal.ts";
+import { getChunk, getChunkCount, getChunkOffset, getLSBPosition, popcount } from "./src/internal.ts";
 import { and, difference, equals, nand, nor, not, or, xnor, xor } from "./src/operations.ts";
 import { assertIsSafeSize, assertIsSafeValue, isSafeSize, isSafeValue } from "./src/validation.ts";
 
@@ -32,6 +32,8 @@ const BooleanArrayUtils = {
   getChunk,
   getChunkCount,
   getChunkOffset,
+  getLSBPosition,
+  popcount,
   ALL_BITS_TRUE,
   CHUNK_MASK,
   CHUNK_SHIFT,
@@ -49,6 +51,8 @@ type BooleanArrayStatics = {
   getChunk: typeof getChunk;
   getChunkCount: typeof getChunkCount;
   getChunkOffset: typeof getChunkOffset;
+  getLSBPosition: typeof getLSBPosition;
+  popcount: typeof popcount;
 };
 
 const BooleanArrayExport = Object.assign(BooleanArray, {
@@ -62,6 +66,8 @@ const BooleanArrayExport = Object.assign(BooleanArray, {
   getChunk,
   getChunkCount,
   getChunkOffset,
+  getLSBPosition,
+  popcount,
 }) as typeof BooleanArray & BooleanArrayStatics;
 
 export {
@@ -82,12 +88,14 @@ export {
   getChunk,
   getChunkCount,
   getChunkOffset,
+  getLSBPosition,
   isSafeSize,
   isSafeValue,
   nand,
   nor,
   not,
   or,
+  popcount,
   xnor,
   xor,
 };
