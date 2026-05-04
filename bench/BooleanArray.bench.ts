@@ -1,7 +1,33 @@
 /// <reference lib="deno.ns" />
 /// <reference lib="dom" />
 
-import { BooleanArray } from "../mod.ts";
+import {
+  and,
+  BooleanArray as BooleanArrayBase,
+  difference,
+  equals,
+  fromArray,
+  fromObjects,
+  fromUint32Array,
+  getChunk,
+  getChunkCount,
+  getChunkOffset,
+  nand,
+  nor,
+  not,
+  or,
+  xnor,
+  xor,
+} from "../mod.ts";
+
+const BooleanArray = Object.assign(BooleanArrayBase, {
+  fromArray,
+  fromObjects,
+  fromUint32Array,
+  getChunk,
+  getChunkCount,
+  getChunkOffset,
+});
 
 // Add before benchmarks
 const warmupArray = new BooleanArray(1024);
@@ -262,59 +288,59 @@ denseLargeArray.fill(true);
 
 // Population count benchmarks
 Deno.bench({
-  name: "getTruthyCount - small array (empty)",
+  name: "getCount(true) - small array (empty)",
   group: "population",
   baseline: true,
   fn: () => {
-    emptySmallArray.getTruthyCount();
+    emptySmallArray.getCount(true);
   },
 });
 
 Deno.bench({
-  name: "getTruthyCount - small array (sparse)",
+  name: "getCount(true) - small array (sparse)",
   group: "population",
   fn: () => {
-    sparseSmallArray.getTruthyCount();
+    sparseSmallArray.getCount(true);
   },
 });
 
 Deno.bench({
-  name: "getTruthyCount - small array (dense)",
+  name: "getCount(true) - small array (dense)",
   group: "population",
   fn: () => {
-    denseSmallArray.getTruthyCount();
+    denseSmallArray.getCount(true);
   },
 });
 
 Deno.bench({
-  name: "getTruthyCount - medium array (sparse)",
+  name: "getCount(true) - medium array (sparse)",
   group: "population",
   fn: () => {
-    sparseMediumArray.getTruthyCount();
+    sparseMediumArray.getCount(true);
   },
 });
 
 Deno.bench({
-  name: "getTruthyCount - medium array (dense)",
+  name: "getCount(true) - medium array (dense)",
   group: "population",
   fn: () => {
-    denseMediumArray.getTruthyCount();
+    denseMediumArray.getCount(true);
   },
 });
 
 Deno.bench({
-  name: "getTruthyCount - large array (sparse)",
+  name: "getCount(true) - large array (sparse)",
   group: "population",
   fn: () => {
-    sparseLargeArray.getTruthyCount();
+    sparseLargeArray.getCount(true);
   },
 });
 
 Deno.bench({
-  name: "getTruthyCount - large array (dense)",
+  name: "getCount(true) - large array (dense)",
   group: "population",
   fn: () => {
-    denseLargeArray.getTruthyCount();
+    denseLargeArray.getCount(true);
   },
 });
 
@@ -327,59 +353,59 @@ a.set(0, 512, true);
 b.set(256, 512, true);
 
 Deno.bench({
-  name: "BooleanArray.and()",
+  name: "and()",
   group: "bitwise",
   baseline: true,
   fn: () => {
-    BooleanArray.and(a, b);
+    and(a, b);
   },
 });
 
 Deno.bench({
-  name: "BooleanArray.or()",
+  name: "or()",
   group: "bitwise",
   fn: () => {
-    BooleanArray.or(a, b);
+    or(a, b);
   },
 });
 
 Deno.bench({
-  name: "BooleanArray.xor()",
+  name: "xor()",
   group: "bitwise",
   fn: () => {
-    BooleanArray.xor(a, b);
+    xor(a, b);
   },
 });
 
 Deno.bench({
-  name: "BooleanArray.nand()",
+  name: "nand()",
   group: "bitwise",
   fn: () => {
-    BooleanArray.nand(a, b);
+    nand(a, b);
   },
 });
 
 Deno.bench({
-  name: "BooleanArray.nor()",
+  name: "nor()",
   group: "bitwise",
   fn: () => {
-    BooleanArray.nor(a, b);
+    nor(a, b);
   },
 });
 
 Deno.bench({
-  name: "BooleanArray.not()",
+  name: "not()",
   group: "bitwise",
   fn: () => {
-    BooleanArray.not(a);
+    not(a);
   },
 });
 
 Deno.bench({
-  name: "BooleanArray.xnor()",
+  name: "xnor()",
   group: "bitwise",
   fn: () => {
-    BooleanArray.xnor(a, b);
+    xnor(a, b);
   },
 });
 
@@ -951,7 +977,7 @@ Deno.bench({
   group: "equals",
   baseline: true,
   fn: () => {
-    BooleanArray.equals(emptyA, emptyB);
+    equals(emptyA, emptyB);
   },
 });
 
@@ -959,7 +985,7 @@ Deno.bench({
   name: "equals - sparse arrays (identical)",
   group: "equals",
   fn: () => {
-    BooleanArray.equals(sparseA, sparseB);
+    equals(sparseA, sparseB);
   },
 });
 
@@ -967,7 +993,7 @@ Deno.bench({
   name: "equals - dense arrays (identical)",
   group: "equals",
   fn: () => {
-    BooleanArray.equals(denseA, denseB);
+    equals(denseA, denseB);
   },
 });
 
@@ -975,7 +1001,7 @@ Deno.bench({
   name: "equals - arrays with differences",
   group: "equals",
   fn: () => {
-    BooleanArray.equals(diffA, diffB);
+    equals(diffA, diffB);
   },
 });
 
@@ -983,7 +1009,7 @@ Deno.bench({
   name: "equals - large arrays (1M bits)",
   group: "equals",
   fn: () => {
-    BooleanArray.equals(largeA, largeB);
+    equals(largeA, largeB);
   },
 });
 
@@ -993,7 +1019,7 @@ Deno.bench({
   group: "difference",
   baseline: true,
   fn: () => {
-    BooleanArray.difference(emptyA, emptyB);
+    difference(emptyA, emptyB);
   },
 });
 
@@ -1001,7 +1027,7 @@ Deno.bench({
   name: "difference - sparse arrays (identical)",
   group: "difference",
   fn: () => {
-    BooleanArray.difference(sparseA, sparseB);
+    difference(sparseA, sparseB);
   },
 });
 
@@ -1009,7 +1035,7 @@ Deno.bench({
   name: "difference - dense arrays (identical)",
   group: "difference",
   fn: () => {
-    BooleanArray.difference(denseA, denseB);
+    difference(denseA, denseB);
   },
 });
 
@@ -1017,7 +1043,7 @@ Deno.bench({
   name: "difference - arrays with partial overlap",
   group: "difference",
   fn: () => {
-    BooleanArray.difference(diffA, diffB);
+    difference(diffA, diffB);
   },
 });
 
@@ -1025,7 +1051,7 @@ Deno.bench({
   name: "difference - large arrays (1M bits)",
   group: "difference",
   fn: () => {
-    BooleanArray.difference(largeA, largeB);
+    difference(largeA, largeB);
   },
 });
 
@@ -1039,7 +1065,7 @@ Deno.bench({
   name: "equals - non-aligned size",
   group: "equals-edge",
   fn: () => {
-    BooleanArray.equals(edgeCaseA, edgeCaseB);
+    equals(edgeCaseA, edgeCaseB);
   },
 });
 
@@ -1047,7 +1073,7 @@ Deno.bench({
   name: "difference - non-aligned size",
   group: "difference-edge",
   fn: () => {
-    BooleanArray.difference(edgeCaseA, edgeCaseB);
+    difference(edgeCaseA, edgeCaseB);
   },
 });
 
@@ -1940,16 +1966,16 @@ copyTestA.set(0, 512, true);
 copyTestB.set(256, 768, true);
 
 Deno.bench({
-  name: "BooleanArray.and() - copy operation",
+  name: "and() - copy operation",
   group: "inPlace-comparison",
   baseline: true,
   fn: () => {
-    BooleanArray.and(copyTestA, copyTestB);
+    and(copyTestA, copyTestB);
   },
 });
 
 Deno.bench({
-  name: "BooleanArray.and() - in-place operation",
+  name: "and() - in-place operation",
   group: "inPlace-comparison",
   fn: () => {
     const a = copyTestA.clone();
@@ -1958,15 +1984,15 @@ Deno.bench({
 });
 
 Deno.bench({
-  name: "BooleanArray.or() - copy operation",
+  name: "or() - copy operation",
   group: "inPlace-comparison",
   fn: () => {
-    BooleanArray.or(copyTestA, copyTestB);
+    or(copyTestA, copyTestB);
   },
 });
 
 Deno.bench({
-  name: "BooleanArray.or() - in-place operation",
+  name: "or() - in-place operation",
   group: "inPlace-comparison",
   fn: () => {
     const a = copyTestA.clone();
@@ -1975,15 +2001,15 @@ Deno.bench({
 });
 
 Deno.bench({
-  name: "BooleanArray.not() - copy operation",
+  name: "not() - copy operation",
   group: "inPlace-comparison",
   fn: () => {
-    BooleanArray.not(copyTestA);
+    not(copyTestA);
   },
 });
 
 Deno.bench({
-  name: "BooleanArray.not() - in-place operation",
+  name: "not() - in-place operation",
   group: "inPlace-comparison",
   fn: () => {
     const a = copyTestA.clone();
@@ -2429,7 +2455,7 @@ Deno.bench({
   name: "length property access",
   group: "property-access",
   fn: () => {
-    propertyTestArray.length;
+    propertyTestArray.wordLength;
   },
 });
 
@@ -2665,7 +2691,7 @@ Deno.bench({
   group: "equals-patterns",
   baseline: true,
   fn: () => {
-    BooleanArray.equals(equalsArrayA, equalsArrayB);
+    equals(equalsArrayA, equalsArrayB);
   },
 });
 
@@ -2673,7 +2699,7 @@ Deno.bench({
   name: "equals - arrays differing at end",
   group: "equals-patterns",
   fn: () => {
-    BooleanArray.equals(equalsArrayA, equalsArrayC);
+    equals(equalsArrayA, equalsArrayC);
   },
 });
 
@@ -2685,7 +2711,7 @@ Deno.bench({
   name: "equals - arrays differing at start",
   group: "equals-patterns",
   fn: () => {
-    BooleanArray.equals(equalsArrayA, equalsArrayEarlyDiff);
+    equals(equalsArrayA, equalsArrayEarlyDiff);
   },
 });
 
@@ -2697,7 +2723,7 @@ Deno.bench({
   name: "equals - arrays differing in middle",
   group: "equals-patterns",
   fn: () => {
-    BooleanArray.equals(equalsArrayA, equalsArrayMiddleDiff);
+    equals(equalsArrayA, equalsArrayMiddleDiff);
   },
 });
 
@@ -2709,7 +2735,7 @@ Deno.bench({
   name: "equals - different sizes",
   group: "equals-patterns",
   fn: () => {
-    BooleanArray.equals(equalsArrayA, differentSizeArray);
+    equals(equalsArrayA, differentSizeArray);
   },
 });
 

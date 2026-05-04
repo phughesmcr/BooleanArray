@@ -17,9 +17,11 @@ See [jsr.io/@phughesmcr/booleanarray](https://jsr.io/@phughesmcr/booleanarray) f
 - **Memory efficient**: Stores 32 booleans per 4-byte chunk (8x more compact than a boolean array)
 - **Fast bitwise operations**: AND, OR, XOR, NOT, NAND, NOR, XNOR, and set difference
 - **Zero-allocation methods**: Many operations offer in-place or preallocated-buffer variants
-- **Bulk operations**: `copyFrom`, `setFromIndices`, and range-based `set`/`get` for efficient batch processing
+- **Bulk operations**: `copyFrom`, `copyFromArray`, `copyFromUint8Array`, `copyFromObjects`,
+  `setFromIndices`, `setFromObjects`, and range-based `set`/`get` for efficient batch processing
 - **Fluent API**: Most methods return `this` for chaining
-- **Full iteration support**: Iterators, forEach, and generator methods for both truthy and falsy bits
+- **Iteration support**: Standard value/key/entry iterators plus zero-allocation truthy/falsy callbacks,
+  cursors, and index export
 
 ## Installation
 
@@ -73,7 +75,7 @@ console.log(bits.get(43));  // false
 bits.set(100, 50, true);  // Set 50 bits starting at index 100
 
 // Get population count (number of set bits)
-console.log(bits.getTruthyCount());
+console.log(bits.getCount(true));
 
 // Iterate over set bits
 for (const index of bits.truthyIndices()) {
@@ -86,17 +88,32 @@ for (const index of bits.truthyIndices()) {
 ### Construction
 
 ```ts
+import { BooleanArray, fromArray, fromObjects, fromUint32Array, fromUint8Array } from "@phughesmcr/booleanarray";
+
 // Create an empty array of a given size
 const bits = new BooleanArray(1000);
 
 // Create from an array of indices to set to true
-const fromIndices = BooleanArray.fromArray(100, [1, 3, 5, 7, 9]);
+const fromIndices = fromArray(100, [1, 3, 5, 7, 9]);
 
 // Create from a boolean array
-const fromBools = BooleanArray.fromArray(5, [true, false, true, false, true]);
+const fromBools = fromArray(5, [true, false, true, false, true]);
 
 // Create from raw Uint32Array data
-const fromBuffer = BooleanArray.fromUint32Array(64, new Uint32Array([0xFFFFFFFF, 0x0000FFFF]));
+const fromBuffer = fromUint32Array(64, new Uint32Array([0xFFFFFFFF, 0x0000FFFF]));
+
+// Create from positional 0/1 bytes
+const fromBytes = fromUint8Array(5, new Uint8Array([1, 0, 1, 1, 0]));
+
+// Reuse an existing BooleanArray for raw Uint32Array data
+bits.copyFromUint32Array(new Uint32Array([0xFFFFFFFF]));
+bits.copyToUint32Array(new Uint32Array(bits.wordLength));
+bits.copyFromUint8Array(new Uint8Array([1, 0, 1, 0]));
+bits.copyToUint8Array(new Uint8Array(bits.size));
+
+// Reuse an existing BooleanArray for higher-level frame data
+bits.copyFromArray([1, 3, 5, 7, 9]);
+bits.copyFromArray([true, false, true, false, true]);
 
 // Create from objects with a numeric key
 const events = [
@@ -104,13 +121,17 @@ const events = [
   { id: 2, name: "event2" },
   { id: 5, name: "event5" },
 ];
-const fromObjects = BooleanArray.fromObjects(10, "id", events);
+const fromObjectsResult = fromObjects(10, "id", events);
 // bits 0, 2, 5 are set to true
+bits.copyFromObjects("id", events);
+bits.setFromObjects("id", events);
 ```
 
 ### Getting & Setting Bits
 
 ```ts
+import { BooleanArray, equals } from "@phughesmcr/booleanarray";
+
 const bits = new BooleanArray(100);
 
 // Single bit operations
@@ -132,12 +153,19 @@ bits.clear();                 // Set all bits to false (alias for fill(false))
 For performance-critical code, use preallocated buffers to avoid GC pressure:
 
 ```ts
+import { BooleanArray, BooleanArrayUtils } from "@phughesmcr/booleanarray";
+
 const bits = new BooleanArray(1000);
 bits.set(0, 100, true);
 
 // Copy values into a preallocated boolean array
 const out = new Array<boolean>(50);
 bits.getInto(0, 50, out);
+
+// Copy values as 0/1 bytes into a preallocated Uint8Array
+const byteOut = new Uint8Array(50);
+bits.getUint8Into(0, 50, byteOut);
+bits.copyFromUint8Array(byteOut);
 
 // Copy truthy indices into a preallocated Uint32Array
 const indices = new Uint32Array(100);
@@ -158,6 +186,15 @@ bits.forEachFalsy((index) => {
   console.log(`Bit ${index} is unset`);
 });
 
+// Cursor-style scanning avoids generator allocation and callback dispatch
+for (let index = bits.nextTruthyIndex(); index !== -1; index = bits.nextTruthyIndex(index + 1)) {
+  console.log(`Bit ${index} is set`);
+}
+
+for (let index = bits.nextFalsyIndex(); index !== -1; index = bits.nextFalsyIndex(index + 1)) {
+  console.log(`Bit ${index} is unset`);
+}
+
 // Iterate all bits without allocation
 bits.forEach((value, index) => {
   console.log(`Bit ${index} = ${value}`);
@@ -172,34 +209,57 @@ const source = new BooleanArray(1000);
 source.fill(true);
 bits.copyFrom(source);  // Copy all bits
 bits.copyFrom(source, 0, 100, 50);  // Copy 50 bits from source[0] to dest[100]
+source.cloneInto(bits);  // Clone into a reusable destination
+bits.copyFromUint32Array(source.buffer);  // Load raw words into a reusable destination
+source.copyToUint32Array(new Uint32Array(source.wordLength));  // Export raw words into a reusable buffer
+bits.copyFromUint8Array(new Uint8Array([1, 0, 1, 0]));  // Load positional 0/1 bytes
+bits.copyToUint8Array(new Uint8Array(bits.size));  // Export positional 0/1 bytes
+bits.copyFromArray([1, 3, 5, 7, 9]);  // Replace with reusable index/boolean input
+bits.copyFromObjects("id", events);  // Replace from reusable event/object input
+bits.setFromObjects("id", events);  // Add or clear bits from reusable event/object input
+
+// Reuse an output BooleanArray for bitwise operations
+const other = new BooleanArray(1000);
+const output = new BooleanArray(1000);
+BooleanArrayUtils.andInto(bits, other, output);
+BooleanArrayUtils.xorInto(bits, other, output);
 ```
 
 ### Bitwise Operations
 
-All bitwise operations are available as both **static methods** (return new instance) and **instance methods** (modify in-place):
+All bitwise operations are available as **functions** (return new instance), **instance methods** (modify
+in-place), and **into functions** (write into a preallocated output array):
 
 ```ts
+import { BooleanArray, and, andInto, or, xor, not, nand, nor, xnor, difference } from "@phughesmcr/booleanarray";
+
 const a = new BooleanArray(100);
 const b = new BooleanArray(100);
 
-// Static methods - return new BooleanArray
-const andResult = BooleanArray.and(a, b);
-const orResult = BooleanArray.or(a, b);
-const xorResult = BooleanArray.xor(a, b);
-const notResult = BooleanArray.not(a);
-const nandResult = BooleanArray.nand(a, b);
-const norResult = BooleanArray.nor(a, b);
-const xnorResult = BooleanArray.xnor(a, b);
-const diffResult = BooleanArray.difference(a, b);  // a AND NOT b
+// Functions - return new BooleanArray
+const andResult = and(a, b);
+const orResult = or(a, b);
+const xorResult = xor(a, b);
+const notResult = not(a);
+const nandResult = nand(a, b);
+const norResult = nor(a, b);
+const xnorResult = xnor(a, b);
+const diffResult = difference(a, b);  // a AND NOT b
 
 // Instance methods - modify in-place, return this for chaining
 a.and(b).or(b).xor(b).not();
 a.nand(b).nor(b).xnor(b).difference(b);
+
+// Into functions - write into a preallocated output array
+const out = new BooleanArray(100);
+andInto(a, b, out);
 ```
 
 ### Searching
 
 ```ts
+import { BooleanArray, fromUint32Array } from "@phughesmcr/booleanarray";
+
 const bits = new BooleanArray(100);
 bits.set(10, true).set(50, true).set(90, true);
 
@@ -219,15 +279,19 @@ const bits = new BooleanArray(100);
 
 bits.isEmpty();              // true if no bits are set
 bits.isFull();               // true if all bits are set
-bits.getTruthyCount();       // number of set bits (population count)
-bits.getFalsyCount();        // number of unset bits
+bits.getCount(true);         // number of set bits (population count)
+bits.getCount(false);        // number of unset bits
 bits.size;                   // total number of bits (100)
-bits.length;                 // number of Uint32 chunks in buffer
+bits.wordLength;             // number of Uint32 chunks in buffer
 
 // Equality check
 const other = bits.clone();
 bits.equals(other);          // true
-BooleanArray.equals(bits, other);  // static version
+equals(bits, other);         // functional version
+
+// Allocation-free relationship queries
+bits.intersects(other);      // true if any truthy bit overlaps
+bits.containsAll(other);     // true if every truthy bit in other is also truthy in bits
 
 // Index validation
 bits.isSafeIndex(50);        // true if index is valid for this array
@@ -255,6 +319,10 @@ for (const index of bits.truthyIndices(2, 8)) {
   console.log(index);  // 3, 7
 }
 
+// For unset-bit hot paths, prefer zero-allocation falsy APIs:
+bits.forEachFalsy((index) => { /* ... */ });
+const falsyCount = bits.falsyIndicesInto(new Uint32Array(bits.size));
+
 // Array-like iteration methods
 for (const [index, value] of bits.entries()) { /* ... */ }
 for (const index of bits.keys()) { /* ... */ }
@@ -268,8 +336,7 @@ const bits = new BooleanArray(100);
 
 bits.buffer;          // Underlying Uint32Array (direct access for zero-copy interop)
 bits.size;            // Total number of bits (100)
-bits.length;          // Number of Uint32 chunks (alias for chunkCount)
-bits.chunkCount;      // Number of Uint32 chunks in buffer
+bits.wordLength;      // Number of Uint32 chunks in buffer
 bits.lastChunkMask;   // Bitmask for valid bits in last chunk
 bits.bitsInLastChunk; // Number of valid bits in last chunk (0 means full chunk)
 ```
@@ -282,11 +349,26 @@ const bits = new BooleanArray(100);
 // Clone
 const copy = bits.clone();
 
+// Clone into a preallocated output array
+const reusableCopy = new BooleanArray(100);
+bits.cloneInto(reusableCopy);
+
 // Access underlying buffer for serialization
 const buffer = bits.buffer;  // Uint32Array
 
 // Recreate from buffer
-const restored = BooleanArray.fromUint32Array(bits.size, buffer);
+const restored = fromUint32Array(bits.size, buffer);
+
+// Or reuse an existing destination
+reusableCopy.copyFromUint32Array(buffer);
+
+// Export into a reusable raw-word buffer
+const reusableBuffer = new Uint32Array(bits.wordLength);
+bits.copyToUint32Array(reusableBuffer);
+
+// Export into a reusable positional byte mask
+const reusableBytes = new Uint8Array(bits.size);
+bits.copyToUint8Array(reusableBytes);
 
 // String representation
 console.log(bits.toString());  // Uint32Array string format
@@ -295,33 +377,54 @@ console.log(bits.toString());  // Uint32Array string format
 ### Constants
 
 ```ts
-BooleanArray.BITS_PER_INT;   // 32 - bits per chunk
-BooleanArray.MAX_SAFE_SIZE;  // 536870911 - maximum array size
-BooleanArray.ALL_BITS_TRUE;  // 0xFFFFFFFF - mask with all bits set
-BooleanArray.CHUNK_MASK;     // 31 - mask for bit offset within chunk
-BooleanArray.CHUNK_SHIFT;    // 5 - shift for chunk index calculation
-BooleanArray.EMPTY_ARRAY;    // Frozen empty boolean array for zero-allocation returns
+import {
+  BITS_PER_INT,
+  CHUNK_MASK,
+  CHUNK_SHIFT,
+  EMPTY_ARRAY,
+  MAX_SAFE_SIZE,
+  MAX_UINT32,
+} from "@phughesmcr/booleanarray";
+
+BITS_PER_INT;   // 32 - bits per chunk
+MAX_SAFE_SIZE;  // 536870911 - maximum array size
+MAX_UINT32;     // 0xFFFFFFFF - mask with all bits set
+CHUNK_MASK;     // 31 - mask for bit offset within chunk
+CHUNK_SHIFT;    // 5 - shift for chunk index calculation
+EMPTY_ARRAY;    // Frozen empty boolean array for zero-allocation returns
 ```
 
 ### Validation Utilities
 
 ```ts
+import {
+  assertIsSafeSize,
+  assertIsSafeValue,
+  getChunk,
+  getChunkCount,
+  getChunkOffset,
+  getLSBPosition,
+  isSafeSize,
+  isSafeValue,
+  popcount,
+} from "@phughesmcr/booleanarray";
+
 // Check if a size value is valid
-BooleanArray.isSafeSize(100);        // true
-BooleanArray.assertIsSafeSize(100);  // returns 100 or throws
+isSafeSize(100);        // true
+assertIsSafeSize(100);  // returns 100 or throws
 
 // Check if an index/value is valid
-BooleanArray.isSafeValue(42);        // true
-BooleanArray.assertIsSafeValue(42);  // returns 42 or throws
+isSafeValue(42);        // true
+assertIsSafeValue(42);  // returns 42 or throws
 
 // Get chunk information for an index
-BooleanArray.getChunk(42);           // chunk index for bit 42
-BooleanArray.getChunkOffset(42);     // bit offset within chunk
-BooleanArray.getChunkCount(100);     // number of chunks needed for 100 bits
+getChunk(42);           // chunk index for bit 42
+getChunkOffset(42);     // bit offset within chunk
+getChunkCount(100);     // number of chunks needed for 100 bits
 
 // Bit manipulation utilities
-BooleanArray.popcount(0xFF00FF00);   // count set bits in a 32-bit integer (16)
-BooleanArray.getLSBPosition(8);      // position of lowest set bit (3)
+popcount(0xFF00FF00);   // count set bits in a 32-bit integer (16)
+getLSBPosition(8);      // position of lowest set bit (3)
 ```
 
 ## Performance Tips
@@ -329,8 +432,10 @@ BooleanArray.getLSBPosition(8);      // position of lowest set bit (3)
 1. **Use in-place operations** when you don't need to preserve the original:
 
    ```ts
+   import { and } from "@phughesmcr/booleanarray";
+
    // Slower - allocates new array
-   const result = BooleanArray.and(a, b);
+   const result = and(a, b);
    
    // Faster - modifies a in-place
    a.and(b);
@@ -342,8 +447,11 @@ BooleanArray.getLSBPosition(8);      // position of lowest set bit (3)
    // Allocates generator object
    for (const index of bits.truthyIndices()) { /* ... */ }
    
-   // Zero allocation
+   // Zero allocation for set bits
    bits.forEachTruthy((index) => { /* ... */ });
+
+   // Zero allocation for unset bits
+   bits.forEachFalsy((index) => { /* ... */ });
    ```
 
 3. **Preallocate output buffers** for repeated operations:
@@ -368,12 +476,55 @@ BooleanArray.getLSBPosition(8);      // position of lowest set bit (3)
    bits.set(0, 1000, true);
    ```
 
+## Allocation Benchmarking
+
+`deno task bench:allocations` measures GC allocation pressure across repeated rounds and reports both
+before-GC growth and retained-after-GC growth. `deno task bench:allocations:check` runs the same benchmark
+with budgets for the hot paths that are expected to be allocation-free in steady state.
+
+The checked budget is currently `0.5 B/iter` for preallocated and in-place BooleanArray hot paths:
+
+- `copyFrom` aligned and unaligned transfers, including overlapping self-copy
+- `cloneInto` preallocated copies
+- `copyFromUint32Array` raw-buffer loads, `copyToUint32Array` raw-buffer exports, and
+  `copyFromUint8Array` / `copyToUint8Array` positional byte-mask interop
+- `copyFromArray`, `copyFromObjects`, and `setFromObjects` reusable higher-level input loads
+- single-bit `set`, `toggle`, and range `set`, `fill`, `clear`, and `setFromIndices` mutations
+- `andInto`, `orInto`, `xorInto`, `differenceInto`, `nandInto`, `norInto`, `xnorInto`, and `notInto`
+- in-place bitwise method chains
+- single-bit `get`, `getInto`, `getUint8Into`, `getCount`, `isEmpty`, `isFull`, `equals`, `intersects`,
+  `containsAll`, `indexOf`, `lastIndexOf`, `truthyIndicesInto`, `falsyIndicesInto`, `nextTruthyIndex`,
+  `nextFalsyIndex`, and callback-based `forEach`, `forEachTruthy`, and `forEachFalsy`
+- a composed game-frame scratch-buffer scenario that reuses all BooleanArray, Uint32Array, and Uint8Array
+  outputs across copy, mutation, mask, query, index export, and byte export steps
+
+The benchmark also includes built-in baselines for `boolean[]`, `Set<number>`, raw `Uint32Array` loops, and
+iterator-family APIs (`values`, default iteration, `keys`, `entries`, and `truthyIndices`) so
+allocation-sensitive changes can be compared against common game-state representations and ergonomic API
+forms. These baselines are evidence for local tradeoffs, not a claim that every external boolean-array package
+has been benchmarked.
+
+For an external package comparison, run `deno task bench:allocations:external`. The optional
+`deno task bench:allocations:external:check` variant compares local preallocated AND and membership-query
+hot paths against the selected npm bitset packages (`bitset`, `fast-bitset`, `fastbitset`, `bitwise`, and
+`bit-array`). It fails when local allocation is materially higher than an equivalent external scenario, treating
+results under the same `0.5 B/iter` zero-allocation budget as equivalent because V8 memory measurements are
+noisy. These tasks may download npm packages into Deno's cache and are not part of `deno task ci`.
+
+V8 memory measurements are noisy, so the check warms each scenario first, then budgets the highest before-GC
+result from the later steady-state rounds. Treat retained-after-GC output as supporting diagnostic data rather
+than a strict pass/fail signal.
+
 ## Development
 
 ```bash
+deno task ci       # Run tests, static checks, and GC allocation budget checks
 deno task prep     # Format, lint, and type-check (run before commits)
 deno test          # Run all tests
 deno bench         # Run benchmark suite
+deno task bench:allocations:check  # Fail on zero-allocation GC budget regressions
+deno task bench:allocations:external  # Optional external package comparison
+deno task bench:allocations:external:check  # Optional external comparison gate
 deno task example  # Run usage example
 ```
 
@@ -381,7 +532,7 @@ deno task example  # Run usage example
 
 Contributions are welcome! The aim of the project is performance - both in terms of speed and GC allocation pressure.
 
-Please run `deno test` and `deno task prep` before committing.
+Please run `deno task ci` before committing performance-sensitive changes.
 
 ## License
 
