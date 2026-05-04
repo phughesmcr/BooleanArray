@@ -9,6 +9,8 @@ import type { BooleanArray } from "./boolean-array.ts";
 
 /**
  * Bitwise AND operation
+ * @param a the BooleanArray to operate on
+ * @param b the BooleanArray to AND with
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -25,13 +27,15 @@ export function and(a: BooleanArray, b: BooleanArray, inPlace: boolean = false):
     rBuf[i] = (aBuf[i]! & bBuf[i]!) >>> 0;
   }
   if (result.bitsInLastChunk > 0) {
-    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+    rBuf[result.wordLength - 1]! &= result.lastChunkMask;
   }
   return result;
 }
 
 /**
  * Bitwise difference operation
+ * @param a the BooleanArray to operate on
+ * @param b the BooleanArray to subtract
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -48,13 +52,15 @@ export function difference(a: BooleanArray, b: BooleanArray, inPlace: boolean = 
     rBuf[i] = (aBuf[i]! & ~bBuf[i]!) >>> 0;
   }
   if (result.bitsInLastChunk > 0) {
-    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+    rBuf[result.wordLength - 1]! &= result.lastChunkMask;
   }
   return result;
 }
 
 /**
  * Bitwise NAND operation
+ * @param a the BooleanArray to operate on
+ * @param b the BooleanArray to NAND with
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -71,13 +77,15 @@ export function nand(a: BooleanArray, b: BooleanArray, inPlace: boolean = false)
     rBuf[i] = ~(aBuf[i]! & bBuf[i]!) >>> 0;
   }
   if (result.bitsInLastChunk > 0) {
-    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+    rBuf[result.wordLength - 1]! &= result.lastChunkMask;
   }
   return result;
 }
 
 /**
  * Bitwise NOR operation
+ * @param a the BooleanArray to operate on
+ * @param b the BooleanArray to NOR with
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -94,7 +102,7 @@ export function nor(a: BooleanArray, b: BooleanArray, inPlace: boolean = false):
     rBuf[i] = ~(aBuf[i]! | bBuf[i]!) >>> 0;
   }
   if (result.bitsInLastChunk > 0) {
-    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+    rBuf[result.wordLength - 1]! &= result.lastChunkMask;
   }
   return result;
 }
@@ -113,13 +121,15 @@ export function not(a: BooleanArray, inPlace: boolean = false): BooleanArray {
     rBuf[i] = ~aBuf[i]! >>> 0;
   }
   if (result.bitsInLastChunk > 0) {
-    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+    rBuf[result.wordLength - 1]! &= result.lastChunkMask;
   }
   return result;
 }
 
 /**
  * Bitwise OR operation
+ * @param a the BooleanArray to operate on
+ * @param b the BooleanArray to OR with
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -136,13 +146,15 @@ export function or(a: BooleanArray, b: BooleanArray, inPlace: boolean = false): 
     rBuf[i] = (aBuf[i]! | bBuf[i]!) >>> 0;
   }
   if (result.bitsInLastChunk > 0) {
-    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+    rBuf[result.wordLength - 1]! &= result.lastChunkMask;
   }
   return result;
 }
 
 /**
  * Bitwise XOR operation
+ * @param a the BooleanArray to operate on
+ * @param b the BooleanArray to XOR with
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -159,13 +171,15 @@ export function xor(a: BooleanArray, b: BooleanArray, inPlace: boolean = false):
     rBuf[i] = (aBuf[i]! ^ bBuf[i]!) >>> 0;
   }
   if (result.bitsInLastChunk > 0) {
-    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+    rBuf[result.wordLength - 1]! &= result.lastChunkMask;
   }
   return result;
 }
 
 /**
  * Bitwise XNOR operation
+ * @param a the BooleanArray to operate on
+ * @param b the BooleanArray to XNOR with
  * @param inPlace whether the operation should be performed in-place on `a`
  * @returns a BooleanArray with the result
  * @throws {RangeError} if `a` and `b` have different sizes
@@ -182,13 +196,15 @@ export function xnor(a: BooleanArray, b: BooleanArray, inPlace: boolean = false)
     rBuf[i] = ~(aBuf[i]! ^ bBuf[i]!) >>> 0;
   }
   if (result.bitsInLastChunk > 0) {
-    rBuf[result.chunkCount - 1]! &= result.lastChunkMask;
+    rBuf[result.wordLength - 1]! &= result.lastChunkMask;
   }
   return result;
 }
 
 /**
  * Check if two BooleanArrays are equal
+ * @param a the first BooleanArray
+ * @param b the second BooleanArray
  * @returns true if the arrays are equal, false otherwise
  */
 export function equals(a: BooleanArray, b: BooleanArray): boolean {
@@ -198,7 +214,7 @@ export function equals(a: BooleanArray, b: BooleanArray): boolean {
   if (a.size !== b.size) {
     return false;
   }
-  const lastIndex = a.chunkCount - 1;
+  const lastIndex = a.wordLength - 1;
   // Compare all chunks except the last
   for (let i = 0; i < lastIndex; i++) {
     if (a.buffer[i]! !== b.buffer[i]!) {

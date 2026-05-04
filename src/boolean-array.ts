@@ -5,371 +5,29 @@
  * @module      BooleanArray
  */
 
+import { BITS_PER_INT, CHUNK_MASK, CHUNK_SHIFT, MAX_SAFE_SIZE, MAX_UINT32 } from "./constants.ts";
+import {
+  assertValidRange,
+  bitIndicesInto,
+  forEachBitIndex,
+  getBit,
+  getLSBPosition,
+  getRange,
+  is,
+  popcount,
+  setBit,
+  setRange,
+} from "./internal.ts";
 import { and, difference, equals, nand, nor, not, or, xnor, xor } from "./operations.ts";
+import { assertIsSafeSize, assertIsSafeValue } from "./validation.ts";
 
 /** A fast boolean array backed by a Uint32Array */
 export class BooleanArray {
-  /** An empty array of booleans */
-  static readonly EMPTY_ARRAY: readonly boolean[] = Object.freeze([]);
-
   /** The number of bits per chunk */
-  static readonly BITS_PER_INT = 32 as const;
-
-  /** The mask for the chunk offset */
-  static readonly CHUNK_MASK = 31 as const;
-
-  /** The shift for the chunk offset */
-  static readonly CHUNK_SHIFT = 5 as const;
-
-  /** The mask for all bits (~0 >>> 0) (also Uint32Array MAX_VALUE) */
-  static readonly ALL_BITS_TRUE = 4294967295 as const; // 0xFFFFFFFF
+  static readonly BITS_PER_INT = BITS_PER_INT;
 
   /** The maximum safe size for bit operations */
-  static readonly MAX_SAFE_SIZE = 536870911 as const; // Math.floor((2 ** 32 - 1) / 8);
-
-  /**
-   * Performs a bitwise AND operation with two BooleanArrays
-   * @returns a new BooleanArray with the result
-   * @throws {RangeError} if `a` and `b` have different sizes
-   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.and} for in-place operation.
-   */
-  static and(a: BooleanArray, b: BooleanArray): BooleanArray {
-    return and(a, b, false);
-  }
-
-  /**
-   * Performs a bitwise difference operation with two BooleanArrays
-   * @returns a new BooleanArray with the result
-   * @throws {RangeError} if `a` and `b` have different sizes
-   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.difference} for in-place operation.
-   */
-  static difference(a: BooleanArray, b: BooleanArray): BooleanArray {
-    return difference(a, b, false);
-  }
-
-  /**
-   * Checks if two BooleanArrays are equal
-   * @returns `true` if the arrays are equal, `false` otherwise
-   */
-  static equals(a: BooleanArray, b: BooleanArray): boolean {
-    return equals(a, b);
-  }
-
-  /**
-   * Performs a bitwise NAND operation with two BooleanArrays
-   * @returns a new BooleanArray with the result
-   * @throws {RangeError} if `a` and `b` have different sizes
-   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.nand} for in-place operation.
-   */
-  static nand(a: BooleanArray, b: BooleanArray): BooleanArray {
-    return nand(a, b, false);
-  }
-
-  /**
-   * Performs a bitwise NOR operation with two BooleanArrays
-   * @returns a new BooleanArray with the result
-   * @throws {RangeError} if `a` and `b` have different sizes
-   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.nor} for in-place operation.
-   */
-  static nor(a: BooleanArray, b: BooleanArray): BooleanArray {
-    return nor(a, b, false);
-  }
-
-  /**
-   * Performs a bitwise NOT operation with a BooleanArray
-   * @returns a new BooleanArray with the result
-   * @throws {RangeError} if `a` is not a BooleanArray
-   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.not} for in-place operation.
-   */
-  static not(a: BooleanArray): BooleanArray {
-    return not(a, false);
-  }
-
-  /**
-   * Performs a bitwise OR operation with two BooleanArrays
-   * @returns a new BooleanArray with the result
-   * @throws {RangeError} if `a` and `b` have different sizes
-   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.or} for in-place operation.
-   */
-  static or(a: BooleanArray, b: BooleanArray): BooleanArray {
-    return or(a, b, false);
-  }
-
-  /**
-   * Performs a bitwise XOR operation with two BooleanArrays
-   * @param a the first BooleanArray
-   * @param b the second BooleanArray
-   * @returns a new BooleanArray with the result
-   * @throws {RangeError} if `a` and `b` have different sizes
-   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.xor} for in-place operation.
-   */
-  static xor(a: BooleanArray, b: BooleanArray): BooleanArray {
-    return xor(a, b, false);
-  }
-
-  /**
-   * Performs a bitwise XNOR operation with two BooleanArrays
-   * @param a the first BooleanArray
-   * @param b the second BooleanArray
-   * @returns a new BooleanArray with the result
-   * @throws {RangeError} if `a` and `b` have different sizes
-   * @allocates Returns a new instance. Use {@link BooleanArray.prototype.xnor} for in-place operation.
-   */
-  static xnor(a: BooleanArray, b: BooleanArray): BooleanArray {
-    return xnor(a, b, false);
-  }
-
-  /**
-   * Assert that a value is a safe Uint32Array size
-   * @param size the size value to validate
-   * @returns the validated size value
-   * @throws {TypeError} if `size` is not a safe integer
-   * @throws {RangeError} if `size` is less than 1, or greater than BooleanArray.MAX_SAFE_SIZE
-   */
-  static assertIsSafeSize(size: number): number {
-    if (size === BooleanArray.MAX_SAFE_SIZE) return size;
-    if (!Number.isSafeInteger(size)) {
-      throw new TypeError('"size" must be a safe integer.');
-    } else if (size < 1) {
-      throw new RangeError('"size" must be greater than or equal to 1.');
-    } else if (size > BooleanArray.MAX_SAFE_SIZE) {
-      throw new RangeError('"size" must be less than or equal to BooleanArray.MAX_SAFE_SIZE.');
-    }
-    return size;
-  }
-
-  /**
-   * Check if a size value is safe
-   * @param size the size value to validate
-   * @returns `true` if the size value is safe, `false` otherwise
-   */
-  static isSafeSize(size: number): boolean {
-    if (size === BooleanArray.MAX_SAFE_SIZE) return true;
-    if (!Number.isSafeInteger(size)) return false;
-    return size >= 1 && size <= BooleanArray.MAX_SAFE_SIZE;
-  }
-
-  /**
-   * Assert that a value is a safe Uint32Array value
-   * @param value the value to validate
-   * @returns the validated value
-   * @throws {TypeError} if `value` is not a safe integer
-   * @throws {RangeError} if `value` is less than 0, or greater than 0xFFFFFFFF
-   */
-  static assertIsSafeValue(value: number): number {
-    if (!Number.isSafeInteger(value)) {
-      throw new TypeError('"value" must be a safe integer.');
-    } else if (value < 0) {
-      throw new RangeError('"value" must be greater than or equal to 0.');
-    } else if (value > 0xFFFFFFFF) {
-      throw new RangeError(`"value" must be less than or equal to 0xFFFFFFFF.`);
-    }
-    return value;
-  }
-
-  /**
-   * Check if a value is a safe Uint32Array value
-   * @param value the value to validate
-   * @returns `true` if the value is valid, `false` otherwise
-   */
-  static isSafeValue(value: number): boolean {
-    if (!Number.isSafeInteger(value) || value < 0 || value > 0xFFFFFFFF) return false;
-    return true;
-  }
-
-  /**
-   * Create a BooleanArray from an array of numbers, each number representing a bit to set to true.
-   * @param size The size of the BooleanArray
-   * @param arr The array of numbers to create the BooleanArray from
-   * @returns A new BooleanArray instance
-   * @throws {RangeError} If `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
-   * @throws {TypeError} If `size` is not a safe value
-   * @throws {TypeError} If `arr` is not an array
-   * @throws {RangeError} If `arr.length` is larger than `size`
-   * @see {@link BooleanArray.assertIsSafeValue}
-   *
-   * @example
-   * Creates a BooleanArray with 10 bits, setting the odd bits to true
-   * ```ts
-   * const arr = [1,3,5,7,9]; // indices in the array are set to true
-   * const boolArray = BooleanArray.fromArray(10, arr);
-   * console.log(boolArray.get(0)); // false
-   * console.log(boolArray.get(1)); // true
-   * ```
-   */
-  static fromArray(size: number, arr: number[]): BooleanArray;
-  static fromArray(size: number, arr: boolean[]): BooleanArray;
-  static fromArray(size: number, arr: Array<number | boolean>): BooleanArray {
-    if (!Array.isArray(arr)) {
-      throw new TypeError('"arr" must be an array.');
-    }
-    if (arr.length > size) {
-      throw new RangeError(`"arr" must be smaller than or equal to ${size}.`);
-    }
-
-    const pool = new BooleanArray(size);
-
-    if (arr.length === 0) {
-      return pool;
-    } else if (typeof arr[0] === "boolean") {
-      for (let i = 0; i < arr.length; i++) {
-        const bit = arr[i]!;
-        if (typeof bit !== "boolean") {
-          throw new TypeError('"arr" must be an array of booleans.');
-        }
-        const chunk = i >>> BooleanArray.CHUNK_SHIFT;
-        const mask = 1 << (i & BooleanArray.CHUNK_MASK);
-        pool.buffer[chunk]! |= bit ? mask : 0;
-      }
-    } else if (typeof arr[0] === "number") {
-      for (let i = 0; i < arr.length; i++) {
-        const bit = arr[i]! as number;
-        if (BooleanArray.assertIsSafeValue(bit) >= size) {
-          throw new RangeError(`Index ${bit} is out of bounds for array size ${size}.`);
-        }
-        const chunk = bit >>> BooleanArray.CHUNK_SHIFT;
-        const mask = 1 << (bit & BooleanArray.CHUNK_MASK);
-        pool.buffer[chunk]! |= mask;
-      }
-    } else {
-      throw new TypeError('"arr" must be an array of numbers or booleans.');
-    }
-
-    return pool;
-  }
-
-  /**
-   * Create a BooleanArray from a Uint32Array
-   * @param size The size of the BooleanArray
-   * @param arr The Uint32Array to create the BooleanArray from
-   * @returns A new BooleanArray instance
-   * @throws {RangeError} If `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
-   * @throws {TypeError} If `size` is not a safe value
-   * @throws {RangeError} If `arr.length` exceeds the expected buffer length (smaller arrays are zero-padded)
-   * @throws {TypeError} If `arr` is not an ArrayLike<number>
-   * @see {@link BooleanArray.assertIsSafeValue}
-   * @note Arrays smaller than the expected buffer length are automatically zero-padded
-   */
-  static fromUint32Array(size: number, arr: ArrayLike<number>): BooleanArray {
-    BooleanArray.assertIsSafeSize(size);
-    if (!arr || typeof arr.length !== "number") {
-      throw new TypeError('"arr" must be an ArrayLike<number> (e.g., Uint32Array or number[]).');
-    }
-
-    const expectedBufferLength = BooleanArray.getChunkCount(size);
-    if (arr.length > expectedBufferLength) {
-      throw new RangeError(
-        `Input array length (${arr.length}) exceeds expected buffer length (${expectedBufferLength}) for a BooleanArray of size ${size}. Smaller arrays are zero-padded, but larger arrays would lose data.`,
-      );
-    }
-
-    const pool = new BooleanArray(size); // Creates a zeroed buffer of the correct length
-    pool.buffer.set(arr); // Copies content from arr to pool.buffer
-
-    // Ensure unused bits in the last chunk are zeroed out
-    if (pool.bitsInLastChunk > 0) {
-      pool.buffer[pool.chunkCount - 1]! &= pool.lastChunkMask;
-    }
-
-    return pool;
-  }
-
-  /**
-   * Create a BooleanArray from an object, using the object's keys as the bit indices.
-   * @param size The size of the BooleanArray
-   * @param key The key of the object to create the BooleanArray from
-   * @param objs The array of objects to create the BooleanArray from
-   * @returns A new BooleanArray instance
-   * @throws {TypeError} If `objs` is not an array
-   * @throws {TypeError} If `key` is null or undefined
-   * @throws {RangeError} If `size` is less than 1, or is greater than BooleanArray.MAX_SAFE_SIZE
-   * @throws {TypeError} If `size` is not a safe value
-   * @throws {Error} If any object's key value is not a safe value
-   * @see {@link BooleanArray.assertIsSafeValue}
-   *
-   * @example
-   * ```ts
-   * const events = [
-   *   { name: "setActive", entity: 0 },
-   *   { name: "setActive", entity: 2 },
-   * ]
-   * const boolArray = BooleanArray.fromObjects(10, "entity", events);
-   * console.log(boolArray.get(0)); // true
-   * console.log(boolArray.get(1)); // false
-   * console.log(boolArray.get(2)); // true
-   * ```
-   */
-  static fromObjects<T>(size: number, key: keyof T, objs: T[]): BooleanArray {
-    if (!Array.isArray(objs)) {
-      throw new TypeError('"objs" must be an array.');
-    }
-    if (key == null) {
-      throw new TypeError('"key" must not be null or undefined.');
-    }
-    const result = new BooleanArray(size);
-    if (objs.length === 0) {
-      return result;
-    }
-    for (let i = 0; i < objs.length; i++) {
-      const obj = objs[i];
-      const index = obj?.[key] as number; // assertIsSafeValue will throw if not a number
-      if (BooleanArray.assertIsSafeValue(index) >= size) {
-        throw new RangeError(`Index ${index} is out of bounds for array size ${size}.`);
-      }
-      const chunk = index >>> BooleanArray.CHUNK_SHIFT;
-      const mask = 1 << (index & BooleanArray.CHUNK_MASK);
-      result.buffer[chunk]! |= mask;
-    }
-    return result;
-  }
-
-  /**
-   * Get the chunk index for a given bool index
-   * @param index the bool index to get the chunk index for
-   * @returns the chunk index
-   */
-  static getChunk(index: number): number {
-    return index >>> BooleanArray.CHUNK_SHIFT;
-  }
-
-  /**
-   * Get the number of chunks required to accommodate a given number of bools
-   * @param bools the number of bools to get the chunk count for
-   * @returns the number of chunks
-   */
-  static getChunkCount(bools: number): number {
-    return (bools + BooleanArray.CHUNK_MASK) >>> BooleanArray.CHUNK_SHIFT;
-  }
-
-  /**
-   * Get the offset of a bool within a chunk
-   * @param boolIndex the bool index to get the offset for
-   * @returns the offset
-   */
-  static getChunkOffset(boolIndex: number): number {
-    return boolIndex & BooleanArray.CHUNK_MASK;
-  }
-
-  /**
-   * Count the number of set bits in a 32-bit integer (population count)
-   * @param value the 32-bit integer to count bits in
-   * @returns the number of set bits
-   */
-  static popcount(value: number): number {
-    value = value - ((value >>> 1) & 0x55555555);
-    value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);
-    value = (value + (value >>> 4)) & 0x0f0f0f0f;
-    return (value * 0x01010101) >>> 24;
-  }
-
-  /**
-   * Get the bit position of the lowest set bit in a 32-bit integer
-   * @param value the 32-bit integer (must be non-zero)
-   * @returns the bit position (0-31) of the lowest set bit
-   */
-  static getLSBPosition(value: number): number {
-    return Math.clz32(value & -value) ^ BooleanArray.CHUNK_MASK;
-  }
+  static readonly MAX_SAFE_SIZE = MAX_SAFE_SIZE; // Math.floor((2 ** 32 - 1) / 8);
 
   /**
    * The underlying Uint32Array buffer.
@@ -381,12 +39,25 @@ export class BooleanArray {
 
   /**
    * The total number of booleans in the array
-   * Note: for the total number of indices @see {@link BooleanArray.length}
+   * @note for the total number of chunks @see {@link BooleanArray.wordLength}
    */
   readonly size: number;
 
-  /** Pre-calculated number of chunks */
-  readonly chunkCount: number;
+  /**
+   * The number of 32-bit chunks (words) in the underlying buffer
+   * @note For the total number of booleans use {@link BooleanArray.size}
+   */
+  readonly wordLength: number;
+
+  /** Backward-compatible alias for wordLength */
+  get wordCount(): number {
+    return this.wordLength;
+  }
+
+  /** Alias for wordLength used by tests */
+  get chunkCount(): number {
+    return this.wordLength;
+  }
 
   /** Pre-calculated mask for the last chunk */
   readonly lastChunkMask: number;
@@ -401,25 +72,17 @@ export class BooleanArray {
    * @throws {TypeError} if `size` is not a safe integer or NaN
    */
   constructor(size: number) {
-    BooleanArray.assertIsSafeSize(size);
-
-    // Pre-calculate values
+    assertIsSafeSize(size);
     this.size = size;
-    this.chunkCount = (size + BooleanArray.CHUNK_MASK) >>> BooleanArray.CHUNK_SHIFT;
-    this.bitsInLastChunk = size & BooleanArray.CHUNK_MASK;
-    this.lastChunkMask = this.bitsInLastChunk === 0
-      ? BooleanArray.ALL_BITS_TRUE
-      : ((1 << this.bitsInLastChunk) - 1) >>> 0;
-
-    this.buffer = new Uint32Array(this.chunkCount);
+    this.wordLength = (size + CHUNK_MASK) >>> CHUNK_SHIFT;
+    this.bitsInLastChunk = size & CHUNK_MASK;
+    this.lastChunkMask = this.bitsInLastChunk === 0 ? MAX_UINT32 : ((1 << this.bitsInLastChunk) - 1) >>> 0;
+    this.buffer = new Uint32Array(this.wordLength);
   }
 
-  /**
-   * @returns the number of 32-bit chunks in the underlying buffer
-   * @note For the total number of booleans use {@link BooleanArray.size}
-   */
-  get length(): number {
-    return this.chunkCount;
+  /** Returns the string tag for this class. */
+  get [Symbol.toStringTag](): string {
+    return "BooleanArray";
   }
 
   /**
@@ -448,123 +111,6 @@ export class BooleanArray {
   }
 
   /**
-   * Assert that a range is valid for iteration
-   * @param startIndex the start index
-   * @param endIndex the end index
-   * @throws {RangeError} if startIndex > endIndex or endIndex > this.size
-   */
-  #assertValidRange(startIndex: number, endIndex: number): void {
-    if (BooleanArray.assertIsSafeValue(startIndex) > BooleanArray.assertIsSafeValue(endIndex)) {
-      throw new RangeError('"startIndex" must be less than or equal to "endIndex".');
-    }
-    if (endIndex > this.size) {
-      throw new RangeError(`"endIndex" (${endIndex}) exceeds array size (${this.size}).`);
-    }
-  }
-
-  /**
-   * Get chunk value, optionally inverted with proper last-chunk masking
-   * @param chunkIndex the chunk index
-   * @param invert whether to invert the chunk (for finding falsy bits)
-   * @returns the chunk value
-   */
-  #getChunkValue(chunkIndex: number, invert: boolean): number {
-    let chunk = this.buffer[chunkIndex]!;
-    if (invert) {
-      chunk = ~chunk;
-      // Mask off unused bits in the last chunk to avoid false positives
-      if (chunkIndex === this.chunkCount - 1 && this.bitsInLastChunk > 0) {
-        chunk &= this.lastChunkMask;
-      }
-    }
-    return chunk;
-  }
-
-  /**
-   * Core iteration over set bit indices with a callback
-   * @param callback function invoked with (index, thisArg) for each matching bit
-   * @param startIndex inclusive start index
-   * @param endIndex exclusive end index
-   * @param invert if true, iterate over unset (false) bits instead
-   */
-  #forEachBitIndex(
-    callback: (index: number, thisArg?: BooleanArray) => void,
-    startIndex: number,
-    endIndex: number,
-    invert: boolean,
-  ): void {
-    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
-    const endChunk = (endIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
-    const startChunk = startIndex >>> BooleanArray.CHUNK_SHIFT;
-
-    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
-      let chunk = this.#getChunkValue(chunkIndex, invert);
-      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
-
-      // Mask off bits before startIndex in the first chunk
-      if (chunkIndex === startChunk) {
-        chunk &= BooleanArray.ALL_BITS_TRUE << (startIndex & BooleanArray.CHUNK_MASK);
-      }
-
-      // Process all set bits in this chunk
-      while (chunk !== 0) {
-        const absoluteIndex = chunkBaseIndex + BooleanArray.getLSBPosition(chunk);
-        if (absoluteIndex >= endIndex) return;
-        callback(absoluteIndex, this);
-        chunk &= chunk - 1; // Clear the LSB
-      }
-
-      chunkIndex++;
-    }
-  }
-
-  /**
-   * Core collection of set bit indices into a preallocated array
-   * @param out the destination Uint32Array
-   * @param startIndex inclusive start index
-   * @param endIndex exclusive end index
-   * @param invert if true, collect unset (false) bit indices instead
-   * @returns the total number of indices found (may exceed out.length)
-   */
-  #bitIndicesInto(
-    out: Uint32Array,
-    startIndex: number,
-    endIndex: number,
-    invert: boolean,
-  ): number {
-    let chunkIndex = startIndex >>> BooleanArray.CHUNK_SHIFT;
-    const endChunk = (endIndex - 1) >>> BooleanArray.CHUNK_SHIFT;
-    const startChunk = startIndex >>> BooleanArray.CHUNK_SHIFT;
-    const outLength = out.length;
-    let writeIndex = 0;
-
-    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
-      let chunk = this.#getChunkValue(chunkIndex, invert);
-      const chunkBaseIndex = chunkIndex << BooleanArray.CHUNK_SHIFT;
-
-      // Mask off bits before startIndex in the first chunk
-      if (chunkIndex === startChunk) {
-        chunk &= BooleanArray.ALL_BITS_TRUE << (startIndex & BooleanArray.CHUNK_MASK);
-      }
-
-      // Process all set bits in this chunk
-      while (chunk !== 0) {
-        const absoluteIndex = chunkBaseIndex + BooleanArray.getLSBPosition(chunk);
-        if (absoluteIndex >= endIndex) return writeIndex;
-        if (writeIndex < outLength) {
-          out[writeIndex] = absoluteIndex;
-        }
-        writeIndex++;
-        chunk &= chunk - 1; // Clear the LSB
-      }
-
-      chunkIndex++;
-    }
-
-    return writeIndex;
-  }
-
-  /**
    * Performs an in-place bitwise AND operation with another BooleanArray
    * @param other the BooleanArray to perform the bitwise AND operation with
    * @returns the current BooleanArray
@@ -576,7 +122,7 @@ export class BooleanArray {
   }
 
   /**
-   * Clears the array by setting all bits to false
+   * Sets all bits to false.
    * @returns the current BooleanArray
    */
   clear(): this {
@@ -585,7 +131,7 @@ export class BooleanArray {
   }
 
   /**
-   * Creates a copy of this BooleanArray
+   * Creates a copy of this BooleanArray.
    * @returns a new BooleanArray with the same contents
    * @allocates Returns a new instance.
    */
@@ -618,9 +164,9 @@ export class BooleanArray {
     }
     if (count === 0) return this;
 
-    BooleanArray.assertIsSafeValue(sourceStart);
-    BooleanArray.assertIsSafeValue(destStart);
-    BooleanArray.assertIsSafeValue(count);
+    assertIsSafeValue(sourceStart);
+    assertIsSafeValue(destStart);
+    assertIsSafeValue(count);
 
     if (sourceStart + count > source.size) {
       throw new RangeError(
@@ -633,8 +179,8 @@ export class BooleanArray {
       );
     }
 
-    const shift = BooleanArray.CHUNK_SHIFT;
-    const mask = BooleanArray.CHUNK_MASK;
+    const shift = CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
     const srcBuf = source.buffer;
     const dstBuf = this.buffer;
 
@@ -650,7 +196,7 @@ export class BooleanArray {
       const chunkCount = (count + mask) >>> shift;
 
       if (source === this && srcChunkStart < dstChunkStart + chunkCount && dstChunkStart < srcChunkStart + chunkCount) {
-        // Overlapping self-copy: use copyWithin for safe handling
+        // Overlapping this-copy: use copyWithin for safe handling
         dstBuf.copyWithin(dstChunkStart, srcChunkStart, srcChunkStart + chunkCount);
       } else {
         // Non-overlapping: use set with subarray
@@ -658,8 +204,8 @@ export class BooleanArray {
       }
 
       // Ensure unused bits in the last chunk are zeroed if we touched it
-      if (this.bitsInLastChunk > 0 && dstChunkStart + chunkCount >= this.chunkCount) {
-        dstBuf[this.chunkCount - 1]! &= this.lastChunkMask;
+      if (this.bitsInLastChunk > 0 && dstChunkStart + chunkCount >= this.wordLength) {
+        dstBuf[this.wordLength - 1]! &= this.lastChunkMask;
       }
     } else {
       // Slow path: bit-by-bit copy for unaligned ranges
@@ -723,22 +269,17 @@ export class BooleanArray {
     return equals(this, other);
   }
 
-  /**
-   * Fill the array with a boolean value
-   * @param value the boolean value to fill the array with
-   * @returns the current BooleanArray
-   */
   fill(value: boolean): this {
-    this.buffer.fill(value ? BooleanArray.ALL_BITS_TRUE : 0);
+    this.buffer.fill(value ? MAX_UINT32 : 0);
     // Mask off any excess bits in the last chunk if needed
     if (this.bitsInLastChunk > 0 && value) {
-      this.buffer[this.chunkCount - 1] = this.lastChunkMask;
+      this.buffer[this.wordLength - 1] = this.lastChunkMask;
     }
     return this;
   }
 
   /**
-   * Iterates over each bit in the array
+   * Iterates over each bit in the array.
    * @param callback the callback to execute for each bit.
    * @param startIndex the start index to iterate from [default = 0]
    * @param count the number of booleans to iterate over [default = this.size - startIndex]
@@ -765,18 +306,16 @@ export class BooleanArray {
       throw new TypeError('"callback" must be a function.');
     }
     if (count === 0) return this;
-    if (BooleanArray.assertIsSafeValue(startIndex) + BooleanArray.assertIsSafeValue(count) > this.size) {
+    if (assertIsSafeValue(startIndex) + assertIsSafeValue(count) > this.size) {
       throw new RangeError(
         `Range [${startIndex}, ${startIndex + count}) exceeds array size ${this.size}.`,
       );
     }
-
     const buffer = this.buffer;
-    const mask = BooleanArray.CHUNK_MASK;
-    const shift = BooleanArray.CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
+    const shift = CHUNK_SHIFT;
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
-
     const endIndex = startIndex + count;
     for (let i = startIndex; i < endIndex; i++) {
       const chunkForThisBit = i >>> shift;
@@ -788,50 +327,6 @@ export class BooleanArray {
       callback((currentChunkValue & (1 << offset)) !== 0, i, this);
     }
     return this;
-  }
-
-  /**
-   * Internal fast path for single bit access (no validation)
-   * @param index the bit index
-   * @returns the boolean state of the bit
-   */
-  #getBit(index: number): boolean {
-    return (this.buffer[index >>> BooleanArray.CHUNK_SHIFT]! & (1 << (index & BooleanArray.CHUNK_MASK))) !== 0;
-  }
-
-  /**
-   * Internal range access with validation
-   * @param startIndex the start index to get the booleans from
-   * @param count the number of booleans to get
-   * @returns an array of booleans
-   */
-  #getRange(startIndex: number, count: number): boolean[] {
-    if (BooleanArray.assertIsSafeValue(count) === 0) return BooleanArray.EMPTY_ARRAY as boolean[];
-    if (BooleanArray.assertIsSafeValue(startIndex) + count > this.size) {
-      throw new RangeError(
-        `Range [${startIndex}, ${startIndex + count}) exceeds array size ${this.size}.`,
-      );
-    }
-
-    // Pre-allocate with specific size
-    const result = new Array<boolean>(count);
-    const buffer = this.buffer;
-    const mask = BooleanArray.CHUNK_MASK;
-    const shift = BooleanArray.CHUNK_SHIFT;
-    let currentChunkIndex = -1;
-    let currentChunkValue = 0;
-
-    for (let i = 0; i < count; i++) {
-      const index = startIndex + i;
-      const chunkForThisBit = index >>> shift;
-      if (chunkForThisBit !== currentChunkIndex) {
-        currentChunkIndex = chunkForThisBit;
-        currentChunkValue = buffer[currentChunkIndex]!;
-      }
-      const offset = index & mask;
-      result[i] = (currentChunkValue & (1 << offset)) !== 0;
-    }
-    return result;
   }
 
   /**
@@ -847,15 +342,15 @@ export class BooleanArray {
     if (count === undefined) {
       // Single bit access
       this.assertIsSafeIndex(indexOrStartIndex);
-      return this.#getBit(indexOrStartIndex);
+      return getBit(this, indexOrStartIndex);
     } else {
-      // Range access - bounds checking is done in #getRange
-      return this.#getRange(indexOrStartIndex, count);
+      // Range access - bounds checking is done in getRange
+      return getRange(this, indexOrStartIndex, count);
     }
   }
 
   /**
-   * Copy boolean values into a preallocated array to avoid allocations
+   * Copy boolean values into a preallocated array to avoid allocations.
    * @param startIndex the start index to read from
    * @param count the number of booleans to read
    * @param out the destination boolean array with length >= count
@@ -869,7 +364,7 @@ export class BooleanArray {
       throw new TypeError('"out" must be an array.');
     }
     if (count === 0) return this;
-    if (BooleanArray.assertIsSafeValue(startIndex) + BooleanArray.assertIsSafeValue(count) > this.size) {
+    if (assertIsSafeValue(startIndex) + assertIsSafeValue(count) > this.size) {
       throw new RangeError(
         `Range [${startIndex}, ${startIndex + count}) exceeds array size ${this.size}.`,
       );
@@ -879,8 +374,8 @@ export class BooleanArray {
     }
 
     const buffer = this.buffer;
-    const mask = BooleanArray.CHUNK_MASK;
-    const shift = BooleanArray.CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
+    const shift = CHUNK_SHIFT;
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
 
@@ -898,35 +393,28 @@ export class BooleanArray {
   }
 
   /**
-   * Get the number of set bits in the array
-   * @returns the number of set bits in the array
+   * Get the number of bits matching the provided value.
+   * @param value the bit value to count
+   * @returns the number of matching bits in the array
    */
-  getTruthyCount(): number {
+  getCount(value: boolean): number {
     const buffer = this.buffer;
-    const lastIndex = this.chunkCount - 1;
+    const lastIndex = this.wordLength - 1;
     let count = 0;
 
     // Count all full chunks
     for (let i = 0; i < lastIndex; i++) {
-      count += BooleanArray.popcount(buffer[i]!);
+      count += popcount(buffer[i]!);
     }
 
     // Handle last chunk with pre-calculated mask
-    count += BooleanArray.popcount(buffer[lastIndex]! & this.lastChunkMask);
+    count += popcount(buffer[lastIndex]! & this.lastChunkMask);
 
-    return count;
+    return value ? count : this.size - count;
   }
 
   /**
-   * Get the number of unset (false) bits in the array
-   * @returns the number of unset bits in the array
-   */
-  getFalsyCount(): number {
-    return this.size - this.getTruthyCount();
-  }
-
-  /**
-   * Get the index of the first occurrence of a value
+   * Get the index of the first occurrence of a value.
    * @param value The value to locate in the array.
    * @param fromIndex The array index at which to begin the search. If fromIndex is omitted, the search starts at index 0.
    * @returns the index of the first occurrence of the value, or -1 if the value is not present.
@@ -946,15 +434,15 @@ export class BooleanArray {
     }
 
     const buffer = this.buffer;
-    const shift = BooleanArray.CHUNK_SHIFT;
-    const mask = BooleanArray.CHUNK_MASK;
-    const chunkCount = this.chunkCount;
+    const shift = CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
+    const chunkCount = this.wordLength;
     const lastChunkMask = this.lastChunkMask;
     const startChunk = start >>> shift;
     const startOffset = start & mask;
 
     // Handle first chunk with mask for bits after startOffset
-    const firstChunkMask = (BooleanArray.ALL_BITS_TRUE << startOffset) >>> 0;
+    const firstChunkMask = (MAX_UINT32 << startOffset) >>> 0;
     let firstChunk = buffer[startChunk]!;
 
     // If looking for false, invert the chunk before applying mask
@@ -969,8 +457,8 @@ export class BooleanArray {
     firstChunk &= firstChunkMask;
 
     if (firstChunk !== 0) {
-      const bitPos = Math.clz32(firstChunk & -firstChunk) ^ BooleanArray.CHUNK_MASK;
-      const index = (startChunk << BooleanArray.CHUNK_SHIFT) + bitPos;
+      const bitPos = Math.clz32(firstChunk & -firstChunk) ^ CHUNK_MASK;
+      const index = (startChunk << CHUNK_SHIFT) + bitPos;
       return index < this.size ? index : -1;
     }
 
@@ -988,8 +476,8 @@ export class BooleanArray {
       }
 
       if (chunk !== 0) {
-        const bitPos = Math.clz32(chunk & -chunk) ^ BooleanArray.CHUNK_MASK;
-        const index = (i << BooleanArray.CHUNK_SHIFT) + bitPos;
+        const bitPos = Math.clz32(chunk & -chunk) ^ CHUNK_MASK;
+        const index = (i << CHUNK_SHIFT) + bitPos;
         return index < this.size ? index : -1;
       }
     }
@@ -998,7 +486,7 @@ export class BooleanArray {
   }
 
   /**
-   * Get the index of the last occurrence of a value
+   * Get the index of the last occurrence of a value.
    * @param value The value to locate in the array.
    * @param fromIndex The array index at which to begin searching backward. If fromIndex is omitted, the search starts at the last index in the array.
    * @returns the index of the last occurrence of the value, or -1 if the value is not present.
@@ -1022,9 +510,9 @@ export class BooleanArray {
     const searchUpToBitIndex_inclusive = startIndex;
 
     const buffer = this.buffer;
-    const shift = BooleanArray.CHUNK_SHIFT;
-    const mask = BooleanArray.CHUNK_MASK;
-    const chunkCount = this.chunkCount;
+    const shift = CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
+    const chunkCount = this.wordLength;
     const lastChunkMask = this.lastChunkMask;
     const startChunk = searchUpToBitIndex_inclusive >>> shift;
     const bitOffsetInStartChunk = searchUpToBitIndex_inclusive & mask;
@@ -1044,15 +532,15 @@ export class BooleanArray {
     if (firstChunkValue !== 0) {
       // Create a mask for bits from 0 up to bitOffsetInStartChunk (inclusive)
       let chunkMask;
-      if (bitOffsetInStartChunk === BooleanArray.CHUNK_MASK) {
-        chunkMask = BooleanArray.ALL_BITS_TRUE;
+      if (bitOffsetInStartChunk === CHUNK_MASK) {
+        chunkMask = MAX_UINT32;
       } else {
         chunkMask = ((1 << (bitOffsetInStartChunk + 1)) - 1) >>> 0;
       }
       const maskedChunk = firstChunkValue & chunkMask;
       if (maskedChunk !== 0) {
-        const bitPos = BooleanArray.CHUNK_MASK - Math.clz32(maskedChunk); // Find MSB in the masked part
-        return (startChunk << BooleanArray.CHUNK_SHIFT) + bitPos;
+        const bitPos = CHUNK_MASK - Math.clz32(maskedChunk); // Find MSB in the masked part
+        return (startChunk << CHUNK_SHIFT) + bitPos;
       }
     }
 
@@ -1066,38 +554,20 @@ export class BooleanArray {
       }
 
       if (chunkValue !== 0) {
-        const bitPos = BooleanArray.CHUNK_MASK - Math.clz32(chunkValue); // Find MSB in the full chunk
-        return (i << BooleanArray.CHUNK_SHIFT) + bitPos;
+        const bitPos = CHUNK_MASK - Math.clz32(chunkValue); // Find MSB in the full chunk
+        return (i << CHUNK_SHIFT) + bitPos;
       }
     }
 
     return -1;
   }
 
-  /**
-   * Check if the array is empty
-   * @returns `true` if the array is empty, `false` otherwise
-   */
   isEmpty(): boolean {
-    const buffer = this.buffer;
-    const len = this.chunkCount;
-    for (let i = 0; i < len; i++) {
-      if (buffer[i] !== 0) return false;
-    }
-    return true;
+    return is(this, false);
   }
 
-  /**
-   * Check if all bits in the array are set
-   * @returns `true` if all bits are set, `false` otherwise
-   */
   isFull(): boolean {
-    const buffer = this.buffer;
-    const lastIndex = this.chunkCount - 1;
-    for (let i = 0; i < lastIndex; i++) {
-      if (buffer[i] !== BooleanArray.ALL_BITS_TRUE) return false;
-    }
-    return buffer[lastIndex] === this.lastChunkMask;
+    return is(this, true);
   }
 
   /**
@@ -1128,9 +598,9 @@ export class BooleanArray {
     if (typeof callback !== "function") {
       throw new TypeError('"callback" must be a function.');
     }
-    this.#assertValidRange(startIndex, endIndex);
+    assertValidRange(this, startIndex, endIndex);
     if (startIndex >= endIndex) return this;
-    this.#forEachBitIndex(callback, startIndex, endIndex, false);
+    forEachBitIndex(this, callback, startIndex, endIndex, false);
     return this;
   }
 
@@ -1154,9 +624,9 @@ export class BooleanArray {
     if (!(out instanceof Uint32Array)) {
       throw new TypeError('"out" must be a Uint32Array.');
     }
-    this.#assertValidRange(startIndex, endIndex);
+    assertValidRange(this, startIndex, endIndex);
     if (startIndex >= endIndex) return 0;
-    return this.#bitIndicesInto(out, startIndex, endIndex, false);
+    return bitIndicesInto(this, out, startIndex, endIndex, false);
   }
 
   /**
@@ -1176,9 +646,9 @@ export class BooleanArray {
     if (typeof callback !== "function") {
       throw new TypeError('"callback" must be a function.');
     }
-    this.#assertValidRange(startIndex, endIndex);
+    assertValidRange(this, startIndex, endIndex);
     if (startIndex >= endIndex) return this;
-    this.#forEachBitIndex(callback, startIndex, endIndex, true);
+    forEachBitIndex(this, callback, startIndex, endIndex, true);
     return this;
   }
 
@@ -1202,9 +672,9 @@ export class BooleanArray {
     if (!(out instanceof Uint32Array)) {
       throw new TypeError('"out" must be a Uint32Array.');
     }
-    this.#assertValidRange(startIndex, endIndex);
+    assertValidRange(this, startIndex, endIndex);
     if (startIndex >= endIndex) return 0;
-    return this.#bitIndicesInto(out, startIndex, endIndex, true);
+    return bitIndicesInto(this, out, startIndex, endIndex, true);
   }
 
   /**
@@ -1240,99 +710,12 @@ export class BooleanArray {
   }
 
   /**
-   * Internal fast path for single bit setting (no validation)
-   * @param index the bit index
-   * @param value the boolean value to set
-   */
-  #setBit(index: number, value: boolean): this {
-    const chunk = index >>> BooleanArray.CHUNK_SHIFT;
-    const mask = 1 << (index & BooleanArray.CHUNK_MASK);
-    if (value) {
-      this.buffer[chunk]! |= mask;
-    } else {
-      this.buffer[chunk]! &= ~mask;
-    }
-    return this;
-  }
-
-  #setRange(startIndex: number, count: number, value: boolean): this {
-    if (count === 0) {
-      return this;
-    }
-    if (BooleanArray.assertIsSafeValue(startIndex) + BooleanArray.assertIsSafeValue(count) > this.size) {
-      throw new RangeError(
-        `Range [${startIndex}, ${startIndex + count}) exceeds array size ${this.size}.`,
-      );
-    }
-
-    const startChunk = startIndex >>> BooleanArray.CHUNK_SHIFT;
-    const endChunk = (startIndex + count - 1) >>> BooleanArray.CHUNK_SHIFT;
-
-    if (startChunk === endChunk) {
-      const startOffset = startIndex & BooleanArray.CHUNK_MASK;
-      const mask = count === BooleanArray.BITS_PER_INT && startOffset === 0
-        ? BooleanArray.ALL_BITS_TRUE
-        : (((1 << count) - 1) << startOffset) >>> 0;
-      this.buffer[startChunk] = value ? (this.buffer[startChunk]! | mask) : (this.buffer[startChunk]! & ~mask);
-      return this;
-    }
-
-    // for small cross-chunk ranges, set per-bit
-    if (count <= 16) {
-      const buffer = this.buffer;
-      const shift = BooleanArray.CHUNK_SHIFT;
-      const mask = BooleanArray.CHUNK_MASK;
-      for (let i = 0; i < count; i++) {
-        const idx = startIndex + i;
-        const chunk = idx >>> shift;
-        const bitMask = 1 << (idx & mask);
-        if (value) {
-          buffer[chunk]! |= bitMask;
-        } else {
-          buffer[chunk]! &= ~bitMask;
-        }
-      }
-      return this;
-    }
-
-    // 1. Handle the first (potentially partial) chunk
-    const firstChunkStartOffset = startIndex & BooleanArray.CHUNK_MASK;
-    const firstChunkMask = (BooleanArray.ALL_BITS_TRUE << firstChunkStartOffset) >>> 0;
-    if (value) {
-      this.buffer[startChunk]! |= firstChunkMask;
-    } else {
-      this.buffer[startChunk]! &= ~firstChunkMask;
-    }
-
-    // 2. Handle full chunks in the middle
-    const fillValue = value ? BooleanArray.ALL_BITS_TRUE : 0;
-    // The 'endChunk' in fill is exclusive, so if startChunk+1 === endChunk, it fills nothing.
-    if (startChunk + 1 < endChunk) {
-      this.buffer.fill(fillValue, startChunk + 1, endChunk);
-    }
-
-    // 3. Handle the last (potentially partial) chunk
-    const lastBitIndex = startIndex + count - 1;
-    const lastChunkEndOffset = lastBitIndex & BooleanArray.CHUNK_MASK;
-    const lastChunkMask = lastChunkEndOffset === BooleanArray.CHUNK_MASK
-      ? BooleanArray.ALL_BITS_TRUE
-      : ((1 << (lastChunkEndOffset + 1)) - 1) >>> 0;
-
-    if (value) {
-      this.buffer[endChunk]! |= lastChunkMask;
-    } else {
-      this.buffer[endChunk]! &= ~lastChunkMask;
-    }
-
-    return this;
-  }
-
-  /**
    * Set a single bit or a range of bits to a given value.
    * @param indexOrStartIndex the index to set, or the start index of the range
    * @param valueOrCount the boolean value (single-bit) or the number of booleans to set (range)
    * @param value optional boolean value to set when using the range form
    * @returns `this` for chaining
+   * @throws {TypeError} if indices are not safe integers
    * @throws {RangeError} if indices are out of bounds
    */
   set(index: number, value: boolean): this;
@@ -1341,10 +724,12 @@ export class BooleanArray {
     if (value === undefined) {
       // Single bit setting
       this.assertIsSafeIndex(indexOrStartIndex);
-      return this.#setBit(indexOrStartIndex, valueOrCount as boolean);
+      setBit(this, indexOrStartIndex, valueOrCount as boolean);
+      return this;
     } else {
-      // Range setting - bounds checking is done in #setRange
-      return this.#setRange(indexOrStartIndex, valueOrCount as number, value);
+      // Range setting - bounds checking is done in setRange
+      setRange(this, indexOrStartIndex, valueOrCount as number, value);
+      return this;
     }
   }
 
@@ -1370,8 +755,8 @@ export class BooleanArray {
       throw new TypeError('"indices" must be an ArrayLike<number>.');
     }
 
-    const shift = BooleanArray.CHUNK_SHIFT;
-    const mask = BooleanArray.CHUNK_MASK;
+    const shift = CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
     const buffer = this.buffer;
     const size = this.size;
 
@@ -1397,14 +782,14 @@ export class BooleanArray {
   }
 
   /**
-   * Toggle the boolean state of a bit
+   * Toggle the boolean state of a bit.
    * @param index the bit index to toggle the state of
    * @returns the current BooleanArray for chaining
    */
   toggle(index: number): this {
     this.assertIsSafeIndex(index);
-    const chunk = index >>> BooleanArray.CHUNK_SHIFT;
-    const mask = 1 << (index & BooleanArray.CHUNK_MASK);
+    const chunk = index >>> CHUNK_SHIFT;
+    const mask = 1 << (index & CHUNK_MASK);
     this.buffer[chunk]! ^= mask;
     return this;
   }
@@ -1440,13 +825,13 @@ export class BooleanArray {
   }
 
   /**
-   * Iterator
+   * Iterator.
    * @allocates Creates a generator object. Use {@link forEach} for zero-allocation iteration.
    */
   *[Symbol.iterator](): IterableIterator<boolean> {
     const buffer = this.buffer;
-    const mask = BooleanArray.CHUNK_MASK;
-    const shift = BooleanArray.CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
+    const shift = CHUNK_SHIFT;
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
 
@@ -1462,13 +847,13 @@ export class BooleanArray {
   }
 
   /**
-   * Returns an iterable of key, value pairs for every entry in the array
+   * Returns an iterable of key, value pairs for every entry in the array.
    * @allocates Creates a generator object and tuple per iteration. Use {@link forEach} for zero-allocation.
    */
   *entries(): IterableIterator<[number, boolean]> {
     const buffer = this.buffer;
-    const mask = BooleanArray.CHUNK_MASK;
-    const shift = BooleanArray.CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
+    const shift = CHUNK_SHIFT;
     let currentChunkIndex = -1;
     let currentChunkValue = 0;
 
@@ -1484,7 +869,7 @@ export class BooleanArray {
   }
 
   /**
-   * Returns an iterable of keys in the array
+   * Returns an iterable of keys in the array.
    * @allocates Creates a generator object. Use `for (let i = 0; i < arr.size; i++)` for zero-allocation.
    */
   *keys(): IterableIterator<number> {
@@ -1494,7 +879,7 @@ export class BooleanArray {
   }
 
   /**
-   * Returns an iterable of values in the array
+   * Returns an iterable of values in the array.
    * @allocates Creates a generator object. Use {@link forEach} for zero-allocation iteration.
    */
   *values(): IterableIterator<boolean> {
@@ -1511,28 +896,28 @@ export class BooleanArray {
    * @allocates Creates a generator object. Use {@link forEachTruthy} or {@link truthyIndicesInto} for zero-allocation.
    */
   *truthyIndices(startIndex: number = 0, endIndex: number = this.size): IterableIterator<number> {
-    this.#assertValidRange(startIndex, endIndex);
+    assertValidRange(this, startIndex, endIndex);
     if (startIndex >= endIndex) return;
 
     const buffer = this.buffer;
-    const shift = BooleanArray.CHUNK_SHIFT;
-    const mask = BooleanArray.CHUNK_MASK;
+    const shift = CHUNK_SHIFT;
+    const mask = CHUNK_MASK;
     let chunkIndex = startIndex >>> shift;
     const endChunk = (endIndex - 1) >>> shift;
 
-    while (chunkIndex <= endChunk && chunkIndex < this.chunkCount) {
+    while (chunkIndex <= endChunk && chunkIndex < this.wordLength) {
       let chunk = buffer[chunkIndex]!;
       const chunkBaseIndex = chunkIndex << shift;
 
       // Mask off bits before startIndex in the first chunk
       if (chunkIndex === (startIndex >>> shift)) {
         const startBitOffset = startIndex & mask;
-        chunk &= BooleanArray.ALL_BITS_TRUE << startBitOffset;
+        chunk &= MAX_UINT32 << startBitOffset;
       }
 
       // Process all set bits in this chunk
       while (chunk !== 0) {
-        const absoluteIndex = chunkBaseIndex + BooleanArray.getLSBPosition(chunk);
+        const absoluteIndex = chunkBaseIndex + getLSBPosition(chunk);
 
         if (absoluteIndex >= endIndex) return;
 

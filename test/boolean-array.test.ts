@@ -2,55 +2,8 @@
 /// <reference lib="dom" />
 
 import { assert, assertEquals, assertThrows } from "jsr:@std/assert@^1.0.10";
-import {
-  ALL_BITS_TRUE,
-  and,
-  assertIsSafeSize,
-  assertIsSafeValue,
-  BooleanArray,
-  CHUNK_MASK,
-  CHUNK_SHIFT,
-  difference,
-  EMPTY_ARRAY,
-  equals,
-  fromArray,
-  fromObjects,
-  fromUint32Array,
-  getChunk,
-  getChunkCount,
-  getChunkOffset,
-  isSafeSize,
-  isSafeValue,
-  nand,
-  nor,
-  not,
-  or,
-  xnor,
-  xor,
-} from "../mod.ts";
-
-type BooleanArrayInstance = InstanceType<typeof BooleanArray>;
-
-// Helper function to assert that unused bits in the last chunk are zero
-function assertUnusedBitsZero(array: BooleanArrayInstance, operationName?: string): void {
-  if (array.size === 0 || array.wordLength === 0) return;
-  const bitsInLastChunk = array.size % BooleanArray.BITS_PER_INT;
-  if (bitsInLastChunk === 0) return; // Last chunk is full
-
-  const lastChunkIndex = array.wordLength - 1;
-  const lastChunkValue = Number(array.buffer[lastChunkIndex]!); // Uint32Array access
-  const unusedMask = ALL_BITS_TRUE << bitsInLastChunk;
-
-  assertEquals(
-    lastChunkValue & unusedMask,
-    0,
-    `Unused bits in the last chunk of array (size ${array.size}) after ${
-      operationName || "operation"
-    } should be zero. Last chunk value: 0b${lastChunkValue.toString(2).padStart(32, "0")}, Mask for unused: 0b${
-      unusedMask.toString(2).padStart(32, "0")
-    }`,
-  );
-}
+import { ALL_BITS_TRUE, BooleanArray, and, equals, fromArray, getChunkCount, not, or } from "../mod.ts";
+import { assertUnusedBitsZero } from "./helpers.ts";
 
 Deno.test("BooleanArray - Construction and Validation", async (t) => {
   await t.step("should create array with valid sizes", () => {
@@ -84,14 +37,6 @@ Deno.test("BooleanArray - Construction and Validation", async (t) => {
     assertThrows(() => new BooleanArray(0), RangeError);
     assertThrows(() => new BooleanArray(-1), RangeError);
     assertThrows(() => new BooleanArray(BooleanArray.MAX_SAFE_SIZE + 1), RangeError);
-  });
-
-  await t.step("should verify constants are correct", () => {
-    assertEquals(BooleanArray.BITS_PER_INT, 32);
-    assertEquals(CHUNK_MASK, 31);
-    assertEquals(CHUNK_SHIFT, 5);
-    assertEquals(ALL_BITS_TRUE, 4294967295);
-    assertEquals(BooleanArray.MAX_SAFE_SIZE, 536870911);
   });
 });
 
@@ -173,185 +118,6 @@ Deno.test("BooleanArray - Basic Operations", async (t) => {
   });
 });
 
-Deno.test("BooleanArray - Bitwise Operations", async (t) => {
-  const testSizes = [32, 33, 64, 65]; // Test aligned and non-aligned sizes
-
-  for (const size of testSizes) {
-    await t.step(`Bitwise operations (size ${size})`, () => {
-      const a = new BooleanArray(size);
-      const b = new BooleanArray(size);
-
-      // Setup test patterns
-      if (size > 0) a.set(0, true);
-      if (size > 1) a.set(1, true);
-      if (size > 1) b.set(1, true);
-      if (size > 2) b.set(2, true);
-
-      // Test static operations
-      const andResult = and(a, b);
-      if (size > 0) assertEquals(andResult.get(0), false);
-      if (size > 1) assertEquals(andResult.get(1), true);
-      if (size > 2) assertEquals(andResult.get(2), false);
-      assertUnusedBitsZero(andResult, `AND (size ${size})`);
-
-      const orResult = or(a, b);
-      if (size > 0) assertEquals(orResult.get(0), true);
-      if (size > 1) assertEquals(orResult.get(1), true);
-      if (size > 2) assertEquals(orResult.get(2), true);
-      assertUnusedBitsZero(orResult, `OR (size ${size})`);
-
-      const xorResult = xor(a, b);
-      if (size > 0) assertEquals(xorResult.get(0), true);
-      if (size > 1) assertEquals(xorResult.get(1), false);
-      if (size > 2) assertEquals(xorResult.get(2), true);
-      assertUnusedBitsZero(xorResult, `XOR (size ${size})`);
-
-      // Test advanced operations
-      const notResult = not(a);
-      if (size > 0) assertEquals(notResult.get(0), false);
-      if (size > 1) assertEquals(notResult.get(1), false);
-      assertUnusedBitsZero(notResult, `NOT (size ${size})`);
-
-      const nandResult = nand(a, b);
-      if (size > 0) assertEquals(nandResult.get(0), true);
-      if (size > 1) assertEquals(nandResult.get(1), false);
-      if (size > 2) assertEquals(nandResult.get(2), true);
-      assertUnusedBitsZero(nandResult, `NAND (size ${size})`);
-
-      // Test instance operations (modify in place)
-      const c = a.clone();
-      c.and(b);
-      assertEquals(equals(c, andResult), true);
-
-      // Test that instance operations return this
-      const d = new BooleanArray(size);
-      assertEquals(d.set(0, true), d);
-      assertEquals(d.toggle(1), d);
-      assertEquals(d.fill(false), d);
-    });
-  }
-
-  await t.step("should handle size mismatches", () => {
-    const a = new BooleanArray(32);
-    const b = new BooleanArray(64);
-
-    assertThrows(() => and(a, b), RangeError, "Arrays must have the same size");
-    assertThrows(() => or(a, b), RangeError);
-    assertThrows(() => xor(a, b), RangeError);
-  });
-});
-
-Deno.test("BooleanArray - Additional Bitwise Operations", async (t) => {
-  await t.step("should perform NOR and XNOR (functional)", () => {
-    const a = fromArray(4, [1, 3]); // bits [1,3] => 1010 (bit3..bit0)
-    const b = fromArray(4, [0, 1]); // bits [0,1] => 0011 (bit3..bit0)
-    const norResult = nor(a, b); // ~(1010 | 0011) = ~(1011) = 0100
-    const xnorResult = xnor(a, b); // ~(1010 ^ 0011) = ~(1001) = 0110
-
-    // Verify exact truth tables
-    assertEquals([0, 1, 2, 3].map((i) => norResult.get(i)), [false, false, true, false]);
-    assertEquals([0, 1, 2, 3].map((i) => xnorResult.get(i)), [false, true, true, false]);
-    assertUnusedBitsZero(norResult, "NOR");
-    assertUnusedBitsZero(xnorResult, "XNOR");
-  });
-
-  await t.step("should perform instance bitwise ops in place and return this", () => {
-    const size = 8;
-    const a = fromArray(size, [0, 2, 4, 6]); // 10101010
-    const b = fromArray(size, [1, 2, 3]); // 00001110
-
-    // or
-    const retOr = a.clone().or(b);
-    assertEquals(retOr, retOr.or(b)); // chaining returns this
-    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => retOr.get(i)), [true, true, true, true, true, false, true, false]);
-
-    // xor
-    const tmpXor = a.clone();
-    assert(tmpXor === tmpXor.xor(b)); // chaining returns this
-    const retXor = a.clone().xor(b);
-    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => retXor.get(i)), [
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      false,
-    ]);
-
-    // nand - verify exact truth table
-    const retNand = a.clone().nand(b);
-    // a = [1,0,1,0,1,0,1,0], b = [0,1,1,1,0,0,0,0]
-    // a & b = [0,0,1,0,0,0,0,0], ~(a & b) = [1,1,0,1,1,1,1,1]
-    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => retNand.get(i)), [
-      true,
-      true,
-      false,
-      true,
-      true,
-      true,
-      true,
-      true,
-    ]);
-    assertEquals(retNand, retNand.nand(b)); // chaining returns this (applying nand again)
-    assertUnusedBitsZero(retNand, "NAND in-place");
-
-    // nor - verify exact truth table
-    const retNor = a.clone().nor(b);
-    // a = [1,0,1,0,1,0,1,0], b = [0,1,1,1,0,0,0,0]
-    // a | b = [1,1,1,1,1,0,1,0], ~(a | b) = [0,0,0,0,0,1,0,1]
-    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => retNor.get(i)), [
-      false,
-      false,
-      false,
-      false,
-      false,
-      true,
-      false,
-      true,
-    ]);
-    assertEquals(retNor, retNor.nor(b)); // chaining returns this (applying nor again)
-    assertUnusedBitsZero(retNor, "NOR in-place");
-
-    // xnor - verify exact truth table
-    const retXnor = a.clone().xnor(b);
-    // a = [1,0,1,0,1,0,1,0], b = [0,1,1,1,0,0,0,0]
-    // a ^ b = [1,1,0,1,1,0,1,0], ~(a ^ b) = [0,0,1,0,0,1,0,1]
-    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => retXnor.get(i)), [
-      false,
-      false,
-      true,
-      false,
-      false,
-      true,
-      false,
-      true,
-    ]);
-    assertEquals(retXnor, retXnor.xnor(b)); // chaining returns this (applying xnor again)
-    assertUnusedBitsZero(retXnor, "XNOR in-place");
-
-    // difference (a & ~b)
-    const retDiff = a.clone().difference(b);
-    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => retDiff.get(i)), [
-      true,
-      false,
-      false,
-      false,
-      true,
-      false,
-      true,
-      false,
-    ]);
-
-    // not (unary in-place)
-    const c = fromArray(size, [0, 7]); // 10000001
-    const retNot = c.not();
-    assertEquals(retNot, c);
-    assertEquals([0, 1, 2, 3, 4, 5, 6, 7].map((i) => c.get(i)), [false, true, true, true, true, true, true, false]);
-  });
-});
-
 Deno.test("BooleanArray - Search and Population Operations", async (t) => {
   await t.step("should count population correctly", () => {
     const array = new BooleanArray(100);
@@ -398,25 +164,30 @@ Deno.test("BooleanArray - Search and Population Operations", async (t) => {
     assertEquals(array.lastIndexOf(true, 32), 32); // search from index 32, finds at 32
   });
 
-  await t.step("should support size-equal and negative fromIndex semantics", () => {
-    const size = 10;
-    const array = new BooleanArray(size);
+  await t.step("should handle negative fromIndex for indexOf", () => {
+    const array = new BooleanArray(10);
     array.set(0, true);
     array.set(5, true);
     array.set(9, true);
 
-    // fromIndex == size
-    assertEquals(array.indexOf(true, size), -1);
-    assertEquals(array.indexOf(false, size), -1);
-    assertEquals(array.lastIndexOf(true, size), 9); // clamps to size - 1 = 9
-
-    // negative fromIndex for indexOf (forward search)
-    // -1 => start at size - 1 = 9
+    // negative fromIndex for indexOf (standard Array behavior)
+    // -1 => size + (-1) = 9, start at index 9
     assertEquals(array.indexOf(true, -1), 9);
-    // -2 => start at 8 => next true is 9
+    // -2 => size + (-2) = 8, search from index 8, find at 9
     assertEquals(array.indexOf(true, -2), 9);
-    // very negative clamps to start at 0
+    // -5 => size + (-5) = 5, search from index 5, find at 5
+    assertEquals(array.indexOf(true, -5), 5);
+    // -10 => size + (-10) = 0, search from index 0, find at 0
+    assertEquals(array.indexOf(true, -10), 0);
+    // very negative => size + (-9999) < 0, clamp to 0
     assertEquals(array.indexOf(true, -9999), 0);
+  });
+
+  await t.step("should handle negative fromIndex for lastIndexOf", () => {
+    const array = new BooleanArray(10);
+    array.set(0, true);
+    array.set(5, true);
+    array.set(9, true);
 
     // negative fromIndex for lastIndexOf (backward search, standard Array behavior)
     // -1 => size + (-1) = 9, search from index 9 backwards
@@ -477,7 +248,7 @@ Deno.test("BooleanArray - Iterator Operations", async (t) => {
       assertEquals(arr, array);
     });
 
-    assertEquals(result, array); // Returns this for chaining
+    assert(result === array, "forEach should return this for chaining");
     assertEquals(Object.keys(visited).length, 10);
     assertEquals(visited[2], true);
     assertEquals(visited[7], true);
@@ -545,287 +316,6 @@ Deno.test("BooleanArray - Iterator Operations", async (t) => {
   });
 });
 
-Deno.test("BooleanArray - Factory Functions", async (t) => {
-  await t.step("should create from array of indices", () => {
-    const indices = [0, 31, 32, 99];
-    const array = fromArray(100, indices);
-
-    assertEquals(array.size, 100);
-    assertEquals(array.getCount(true), 4);
-    for (const index of indices) {
-      assertEquals(array.get(index), true);
-    }
-  });
-
-  await t.step("should create from array of booleans", () => {
-    const bools = [true, false, true, false];
-    const array = fromArray(100, bools);
-
-    assertEquals(array.size, 100);
-    assertEquals(array.getCount(true), 2);
-    for (let i = 0; i < bools.length; i++) {
-      assertEquals(array.get(i), bools[i]);
-    }
-  });
-
-  await t.step("should allow empty initializer array", () => {
-    const array = fromArray(100, []);
-    assertEquals(array.size, 100);
-    assertEquals(array.getCount(true), 0);
-  });
-
-  await t.step("should create from Uint32Array", () => {
-    const size = 100;
-    const bufferLength = getChunkCount(size); // Expected: 4 for size 100
-    const sourceBuffer = new Uint32Array(bufferLength);
-
-    // Intentionally set some bits to true
-    // Bit 0 (Chunk 0, offset 0)
-    sourceBuffer[0]! |= 1 << 0;
-    // Bit 31 (Chunk 0, offset 31)
-    sourceBuffer[0]! |= 1 << 31;
-    // Bit 32 (Chunk 1, offset 0)
-    sourceBuffer[1]! |= 1 << 0;
-    // Bit 99 (Chunk 3, offset 3, as 99 = 3*32 + 3)
-    sourceBuffer[3]! |= 1 << 3;
-
-    // To make the test more robust for unused bits, let's set some high bits
-    // in the last chunk of sourceBuffer that *should* be cleared by fromUint32Array.
-    // For size 100, bitsInLastChunk is 100 % 32 = 4. So, bits 0, 1, 2, 3 are used in the last chunk.
-    // Let's set bit 5 (offset 5) in the last chunk (index 3) of sourceBuffer.
-    // This bit is outside the logical size and should be cleared.
-    if (bufferLength > 0 && (size % BooleanArray.BITS_PER_INT) > 0) {
-      const lastChunkIndex = bufferLength - 1;
-      const bitsInLastChunk = size % BooleanArray.BITS_PER_INT;
-      if (bitsInLastChunk < BooleanArray.BITS_PER_INT - 1 && bitsInLastChunk < 5) { // ensure we are not setting used bits
-        sourceBuffer[lastChunkIndex]! |= 1 << 5; // Set a bit that should be unused
-      }
-    }
-
-    const array = fromUint32Array(size, sourceBuffer);
-
-    assertEquals(array.size, size);
-    assertEquals(array.getCount(true), 4, "Truthy count should be 4 based on set bits");
-
-    assertEquals(array.get(0), true, "Bit 0 should be true");
-    assertEquals(array.get(1), false, "Bit 1 should be false");
-    assertEquals(array.get(31), true, "Bit 31 should be true");
-    assertEquals(array.get(32), true, "Bit 32 should be true");
-    assertEquals(array.get(98), false, "Bit 98 should be false");
-    assertEquals(array.get(99), true, "Bit 99 should be true");
-
-    // Verify that the potentially set bit 5 in the last chunk of sourceBuffer (if applicable) was cleared.
-    // For size 100, last chunk (index 3) uses bits 0,1,2,3. Bit 5 should be 0.
-    if (size % BooleanArray.BITS_PER_INT !== 0) { // if last chunk is not full
-      const lastChunkActual = array.buffer[array.chunkCount - 1];
-      const fifthBitMask = 1 << 5;
-      if ((size % BooleanArray.BITS_PER_INT) <= 5) { // Only check if bit 5 is indeed an unused bit
-        assertEquals(lastChunkActual! & fifthBitMask, 0, "Unused bit 5 in last chunk should be cleared");
-      }
-    }
-    assertUnusedBitsZero(array, "fromUint32Array");
-  });
-
-  await t.step("should create from Uint32Array with specific binary patterns", () => {
-    const size = 96; // 3 chunks * 32 bits/chunk
-    const sourceBuffer = new Uint32Array([
-      0b10101010, // Chunk 0: bits 0-31.  Value 170. Popcount 4.
-      0b11111111, // Chunk 1: bits 32-63. Value 255. Popcount 8.
-      0b00000000, // Chunk 2: bits 64-95. Value 0.   Popcount 0.
-    ]);
-    const expectedBufferLength = getChunkCount(size);
-    assertEquals(sourceBuffer.length, expectedBufferLength, "Source buffer length should match expected for size 96");
-
-    const array = fromUint32Array(size, sourceBuffer);
-
-    assertEquals(array.size, size, "Array size should be 96");
-    assertEquals(array.getCount(true), 12, "Truthy count should be 4 + 8 + 0 = 12");
-
-    // Test bits from chunk 0 (0b10101010)
-    assertEquals(array.get(0), false, "Bit 0 (Chunk 0, LSB) should be false");
-    assertEquals(array.get(1), true, "Bit 1 (Chunk 0) should be true");
-    assertEquals(array.get(2), false, "Bit 2 (Chunk 0) should be false");
-    assertEquals(array.get(3), true, "Bit 3 (Chunk 0) should be true");
-    assertEquals(array.get(4), false, "Bit 4 (Chunk 0) should be false");
-    assertEquals(array.get(5), true, "Bit 5 (Chunk 0) should be true");
-    assertEquals(array.get(6), false, "Bit 6 (Chunk 0) should be false");
-    assertEquals(array.get(7), true, "Bit 7 (Chunk 0) should be true");
-    assertEquals(array.get(8), false, "Bit 8 (Chunk 0) should be false"); // Higher bits are 0
-    assertEquals(array.get(31), false, "Bit 31 (Chunk 0, MSB for this pattern) should be false");
-
-    // Test bits from chunk 1 (0b11111111)
-    assertEquals(array.get(32), true, "Bit 32 (Chunk 1, LSB) should be true");
-    assertEquals(array.get(33), true, "Bit 33 (Chunk 1) should be true");
-    assertEquals(array.get(34), true, "Bit 34 (Chunk 1) should be true");
-    assertEquals(array.get(35), true, "Bit 35 (Chunk 1) should be true");
-    assertEquals(array.get(36), true, "Bit 36 (Chunk 1) should be true");
-    assertEquals(array.get(37), true, "Bit 37 (Chunk 1) should be true");
-    assertEquals(array.get(38), true, "Bit 38 (Chunk 1) should be true");
-    assertEquals(array.get(39), true, "Bit 39 (Chunk 1) should be true");
-    assertEquals(array.get(40), false, "Bit 40 (Chunk 1) should be false"); // Higher bits are 0
-    assertEquals(array.get(63), false, "Bit 63 (Chunk 1, MSB for this pattern) should be false");
-
-    // Test bits from chunk 2 (0b00000000)
-    for (let i = 0; i < 32; i++) {
-      assertEquals(array.get(64 + i), false, `Bit ${64 + i} (Chunk 2) should be false`);
-    }
-
-    // Since size 96 is a multiple of 32, the last chunk is full.
-    // assertUnusedBitsZero will return early as bitsInLastChunk is 0.
-    assertUnusedBitsZero(array, "fromUint32Array with specific binary patterns");
-  });
-
-  await t.step("should create from Uint32Array with decimal number patterns", () => {
-    const size = 128; // 4 chunks * 32 bits/chunk
-    const sourceBuffer = new Uint32Array([
-      12, // Chunk 0: 0b00001100. Popcount 2.
-      255, // Chunk 1: 0b11111111. Popcount 8.
-      170, // Chunk 2: 0b10101010. Popcount 4.
-      66, // Chunk 3: 0b01000010. Popcount 2.
-    ]);
-    const expectedBufferLength = getChunkCount(size);
-    assertEquals(sourceBuffer.length, expectedBufferLength, "Source buffer length should match expected for size 128");
-
-    const array = fromUint32Array(size, sourceBuffer);
-
-    assertEquals(array.size, size, "Array size should be 128");
-    assertEquals(array.getCount(true), 16, "Truthy count should be 2 + 8 + 4 + 2 = 16");
-
-    // Test bits from chunk 0 (12 = 0b1100)
-    assertEquals(array.get(0), false, "Bit 0 (Chunk 0) should be false");
-    assertEquals(array.get(1), false, "Bit 1 (Chunk 0) should be false");
-    assertEquals(array.get(2), true, "Bit 2 (Chunk 0) should be true");
-    assertEquals(array.get(3), true, "Bit 3 (Chunk 0) should be true");
-    assertEquals(array.get(4), false, "Bit 4 (Chunk 0) should be false");
-
-    // Test bits from chunk 1 (255 = 0b11111111)
-    for (let i = 0; i < 8; i++) {
-      assertEquals(array.get(32 + i), true, `Bit ${32 + i} (Chunk 1) should be true`);
-    }
-    assertEquals(array.get(40), false, "Bit 40 (Chunk 1, after 8 set bits) should be false");
-
-    // Test bits from chunk 2 (170 = 0b10101010)
-    // Pattern: false, true, false, true, false, true, false, true for LSBs
-    for (let i = 0; i < 8; i++) {
-      assertEquals(array.get(64 + i), (i % 2) !== 0, `Bit ${64 + i} (Chunk 2) should be ${(i % 2) !== 0}`);
-    }
-    assertEquals(array.get(72), false, "Bit 72 (Chunk 2, after pattern) should be false");
-
-    // Test bits from chunk 3 (66 = 0b01000010)
-    // Pattern: 0, 1, 0, 0, 0, 0, 1, 0 for LSBs
-    assertEquals(array.get(96), false, "Bit 96 (Chunk 3) should be false"); // LSB
-    assertEquals(array.get(97), true, "Bit 97 (Chunk 3) should be true"); // Offset 1
-    assertEquals(array.get(98), false, "Bit 98 (Chunk 3) should be false"); // Offset 2
-    assertEquals(array.get(99), false, "Bit 99 (Chunk 3) should be false"); // Offset 3
-    assertEquals(array.get(100), false, "Bit 100 (Chunk 3) should be false"); // Offset 4
-    assertEquals(array.get(101), false, "Bit 101 (Chunk 3) should be false"); // Offset 5
-    assertEquals(array.get(102), true, "Bit 102 (Chunk 3) should be true"); // Offset 6
-    assertEquals(array.get(103), false, "Bit 103 (Chunk 3) should be false"); // Offset 7
-    assertEquals(array.get(104), false, "Bit 104 (Chunk 3, after pattern) should be false");
-
-    // Since size 128 is a multiple of 32, the last chunk is full.
-    assertUnusedBitsZero(array, "fromUint32Array with decimal number patterns");
-  });
-
-  await t.step("should create from Uint32Array with too small buffer", () => {
-    const size = 100;
-    const buffer = new Uint32Array([4294967295]);
-    const arr = fromUint32Array(size, buffer);
-    assertEquals(arr.get(0), true);
-    assertEquals(arr.get(1), true);
-    assertEquals(arr.get(2), true);
-    assertEquals(arr.get(3), true);
-    assertEquals(arr.get(4), true);
-    assertEquals(arr.get(5), true);
-    assertEquals(arr.get(6), true);
-    assertEquals(arr.get(7), true);
-    assertEquals(arr.get(31), true);
-    assertEquals(arr.get(32), false);
-    assertEquals(arr.get(99), false);
-  });
-
-  await t.step("should create from objects", () => {
-    const objects = [
-      { id: 0, name: "first" },
-      { id: 31, name: "second" },
-      { id: 32, name: "third" },
-      { id: 99, name: "fourth" },
-    ];
-    const array = fromObjects<{ id: number; name: string }>(100, "id", objects);
-
-    assertEquals(array.size, 100);
-    assertEquals(array.getCount(true), 4);
-    assertEquals(array.get(0), true);
-    assertEquals(array.get(31), true);
-    assertEquals(array.get(32), true);
-    assertEquals(array.get(99), true);
-  });
-
-  await t.step("should validate factory method inputs", () => {
-    // fromArray validation
-    assertThrows(() => fromArray(100, [1, NaN, 3]), TypeError);
-    // @ts-ignore - Testing runtime behavior
-    assertThrows(() => fromArray(100, [1, "2", 3] as unknown as number[]), TypeError);
-    // @ts-ignore - Testing runtime behavior
-    assertThrows(() => fromArray(100, null as unknown as number[]), TypeError);
-    // @ts-ignore - Testing runtime behavior
-    assertThrows(() => fromArray(100, "not an array" as unknown as number[]), TypeError);
-    assertThrows(() => fromArray(100, [-1, 0, 1]), RangeError);
-    assertThrows(() => fromArray(100, [98, 99, 100]), RangeError);
-    assertThrows(() => fromArray(100, [Infinity]), TypeError);
-    assertThrows(() => fromArray(100, [-Infinity]), TypeError);
-
-    // fromObjects validation
-    // empty array is allowed and should return an empty-initialized instance
-    const emptyFromObjects = fromObjects<{ id: number }>(100, "id", []);
-    assertEquals(emptyFromObjects.getCount(true), 0);
-    // @ts-ignore - Testing runtime behavior
-    assertThrows(() => fromObjects(100, "id", [{}] as Array<{ id: number }>), TypeError);
-    assertThrows(() => fromObjects(100, "id", [{ id: 1 }, { id: "2" }] as Array<{ id: number }>), TypeError);
-    assertThrows(() => fromObjects(100, "id", [{ id: 1 }, {}] as Array<{ id: number }>), TypeError);
-    // @ts-ignore - Testing runtime behavior
-    assertThrows(() => fromObjects(100, "id", null as unknown as Array<{ id: number }>), TypeError);
-    // @ts-ignore - Testing runtime behavior
-    assertThrows(() => fromObjects(100, "id", "not an array" as unknown as Array<{ id: number }>), TypeError);
-    // @ts-ignore - Testing runtime behavior
-    assertThrows(() => fromObjects(100, "id", [{ id: 1 }, null] as Array<{ id: number }>), TypeError);
-    assertThrows(() => fromObjects(100, "id", [{ id: Infinity }] as Array<{ id: number }>), TypeError);
-    assertThrows(() => fromObjects(100, "id", [{ id: NaN }] as Array<{ id: number }>), TypeError);
-
-    // fromUint32Array validation
-    const tooLargeBuffer = new Uint32Array([255, 255, 255, 255]);
-    assertThrows(
-      () => fromUint32Array(2, tooLargeBuffer), // size 2 expects buffer of length 1
-      RangeError,
-      "Input array length (4) exceeds expected buffer length (1) for a BooleanArray of size 2. Smaller arrays are zero-padded, but larger arrays would lose data.",
-    );
-    // deno-lint-ignore no-explicit-any
-    assertThrows(() => fromUint32Array(32, null as any), TypeError, '"arr" must be an ArrayLike<number>');
-
-    assertThrows(
-      () => fromUint32Array(32, {} as ArrayLike<number>),
-      TypeError,
-      '"arr" must be an ArrayLike<number>',
-    );
-    assertThrows(
-      () => fromUint32Array(0, new Uint32Array(0)),
-      RangeError,
-      '"size" must be greater than or equal to 1.',
-    );
-  });
-
-  await t.step("should validate fromArray additional cases", () => {
-    // booleans array longer than size
-    assertThrows(() => fromArray(2, [true, true, true]), RangeError);
-    // numeric indices with duplicates should dedupe effectively
-    const arr = fromArray(10, [1, 1, 2, 2, 2, 9]);
-    assertEquals(arr.getCount(true), 3);
-    assertEquals(arr.get(1), true);
-    assertEquals(arr.get(2), true);
-    assertEquals(arr.get(9), true);
-  });
-});
-
 Deno.test("BooleanArray - Buffer Export and Length Semantics", async (t) => {
   await t.step("length should equal chunk count for various sizes", () => {
     const sizes = [1, 2, 31, 32, 33, 64, 65, 100, 128];
@@ -848,50 +338,6 @@ Deno.test("BooleanArray - Search: last-chunk indexOf(false) masking", async (t) 
     const arr = new BooleanArray(33);
     arr.fill(true);
     assertEquals(arr.indexOf(false, 32), -1);
-  });
-});
-
-Deno.test("BooleanArray - Comparison Operations", async (t) => {
-  await t.step("should compare arrays for equality", () => {
-    const a = new BooleanArray(100);
-    const b = new BooleanArray(100);
-
-    // Empty arrays
-    assertEquals(equals(a, b), true);
-
-    // Same patterns
-    a.set(0, true);
-    a.set(99, true);
-    b.set(0, true);
-    b.set(99, true);
-    assertEquals(equals(a, b), true);
-
-    // Different patterns
-    b.set(50, true);
-    assertEquals(equals(a, b), false);
-
-    // Different sizes
-    const c = new BooleanArray(200);
-    assertEquals(equals(a, c), false);
-  });
-
-  await t.step("should compute difference between arrays", () => {
-    const a = new BooleanArray(32);
-    const b = new BooleanArray(32);
-
-    a.set(0, true);
-    a.set(1, true);
-    b.set(1, true);
-    b.set(2, true);
-
-    const result = difference(a, b);
-    assertEquals(result.get(0), true); // In a but not in b
-    assertEquals(result.get(1), false); // In both
-    assertEquals(result.get(2), false); // In b but not in a
-
-    // Size mismatch should throw
-    const c = new BooleanArray(64);
-    assertThrows(() => difference(a, c), RangeError);
   });
 });
 
@@ -968,135 +414,25 @@ Deno.test("BooleanArray - Error Handling and Edge Cases", async (t) => {
   });
 });
 
-Deno.test("BooleanArray - Internal Utilities", async (t) => {
-  await t.step("should validate assertIsSafeValue", () => {
-    // Valid values (0 to 0xFFFFFFFF)
-    assertEquals(assertIsSafeValue(0), 0);
-    assertEquals(assertIsSafeValue(100), 100);
-    assertEquals(assertIsSafeValue(0xFFFFFFFF), 0xFFFFFFFF);
-
-    // Invalid values - below range
-    assertThrows(() => assertIsSafeValue(-1), RangeError);
-    assertThrows(() => assertIsSafeValue(-100), RangeError);
-
-    // Invalid values - above range
-    assertThrows(() => assertIsSafeValue(0xFFFFFFFF + 1), RangeError);
-    assertThrows(() => assertIsSafeValue(0x100000000), RangeError);
-
-    // Invalid values - not safe integers
-    assertThrows(() => assertIsSafeValue(NaN), TypeError);
-    assertThrows(() => assertIsSafeValue(Infinity), TypeError);
-    assertThrows(() => assertIsSafeValue(-Infinity), TypeError);
-    assertThrows(() => assertIsSafeValue(3.14), TypeError);
-  });
-
-  await t.step("should validate isSafeValue", () => {
-    // Valid values
-    assertEquals(isSafeValue(0), true);
-    assertEquals(isSafeValue(100), true);
-    assertEquals(isSafeValue(0xFFFFFFFF), true);
-
-    // Invalid values - below range
-    assertEquals(isSafeValue(-1), false);
-    assertEquals(isSafeValue(-100), false);
-
-    // Invalid values - above range
-    assertEquals(isSafeValue(0xFFFFFFFF + 1), false);
-    assertEquals(isSafeValue(0x100000000), false);
-
-    // Invalid values - not safe integers
-    assertEquals(isSafeValue(NaN), false);
-    assertEquals(isSafeValue(Infinity), false);
-    assertEquals(isSafeValue(-Infinity), false);
-    assertEquals(isSafeValue(3.14), false);
-  });
-
-  await t.step("should validate assertIsSafeSize", () => {
-    // Valid sizes (1 to MAX_SAFE_SIZE)
-    assertEquals(assertIsSafeSize(1), 1);
-    assertEquals(assertIsSafeSize(100), 100);
-    assertEquals(assertIsSafeSize(BooleanArray.MAX_SAFE_SIZE), BooleanArray.MAX_SAFE_SIZE);
-
-    // Invalid sizes - below range
-    assertThrows(() => assertIsSafeSize(0), RangeError);
-    assertThrows(() => assertIsSafeSize(-1), RangeError);
-
-    // Invalid sizes - above range
-    assertThrows(() => assertIsSafeSize(BooleanArray.MAX_SAFE_SIZE + 1), RangeError);
-
-    // Invalid sizes - not safe integers
-    assertThrows(() => assertIsSafeSize(NaN), TypeError);
-    assertThrows(() => assertIsSafeSize(Infinity), TypeError);
-    assertThrows(() => assertIsSafeSize(-Infinity), TypeError);
-    assertThrows(() => assertIsSafeSize(3.14), TypeError);
-  });
-
-  await t.step("should validate isSafeSize", () => {
-    // Valid sizes
-    assertEquals(isSafeSize(1), true);
-    assertEquals(isSafeSize(100), true);
-    assertEquals(isSafeSize(BooleanArray.MAX_SAFE_SIZE), true);
-
-    // Invalid sizes - below range
-    assertEquals(isSafeSize(0), false);
-    assertEquals(isSafeSize(-1), false);
-
-    // Invalid sizes - above range
-    assertEquals(isSafeSize(BooleanArray.MAX_SAFE_SIZE + 1), false);
-
-    // Invalid sizes - not safe integers
-    assertEquals(isSafeSize(NaN), false);
-    assertEquals(isSafeSize(Infinity), false);
-    assertEquals(isSafeSize(-Infinity), false);
-    assertEquals(isSafeSize(3.14), false);
-  });
-
-  await t.step("should validate chunk utility functions", () => {
-    // Chunk calculations
-    assertEquals(getChunk(0), 0);
-    assertEquals(getChunk(31), 0);
-    assertEquals(getChunk(32), 1);
-    assertEquals(getChunk(63), 1);
-
-    assertEquals(getChunkCount(1), 1);
-    assertEquals(getChunkCount(32), 1);
-    assertEquals(getChunkCount(33), 2);
-
-    assertEquals(getChunkOffset(0), 0);
-    assertEquals(getChunkOffset(31), 31);
-    assertEquals(getChunkOffset(32), 0);
-  });
-});
-
-Deno.test("BooleanArray - Performance and Large Arrays", async (t) => {
-  await t.step("should handle large arrays efficiently", () => {
-    const size = 100000;
-    const array = new BooleanArray(size);
-
-    // Set every 1000th bit
-    for (let i = 0; i < size; i += 1000) {
-      array.set(i, true);
-    }
-    assertEquals(array.getCount(true), Math.floor(size / 1000));
-
-    // Test large range operations
-    array.fill(false);
-    array.set(0, 50000, true);
-    assertEquals(array.getCount(true), 50000);
-  });
-
+Deno.test("BooleanArray - Stress Test", async (t) => {
   await t.step("should maintain correctness after many operations", () => {
     const array = new BooleanArray(1000);
 
     // Stress test with many operations
+    // Each index i is set to (i % 2 === 0), then toggled
     for (let i = 0; i < 1000; i++) {
       array.set(i % array.size, i % 2 === 0);
       array.toggle(i % array.size);
     }
 
-    // Should still be functional
-    assertEquals(typeof array.getCount(true), "number");
-    assertEquals(typeof array.isEmpty(), "boolean");
+    // After the loop, verify the expected pattern:
+    // Index 0: set true, toggle → false
+    // Index 1: set false, toggle → true
+    // Pattern: even indices are false, odd indices are true
+    for (let i = 0; i < array.size; i++) {
+      assertEquals(array.get(i), i % 2 !== 0, `Bit ${i} should be ${i % 2 !== 0}`);
+    }
+    assertEquals(array.getCount(true), 500); // 500 odd indices
   });
 });
 
@@ -1106,7 +442,7 @@ Deno.test("BooleanArray - forEachTruthy", async (t) => {
     const visited: number[] = [];
     const result = arr.forEachTruthy((index) => visited.push(index));
 
-    assertEquals(result, arr); // Returns this for chaining
+    assert(result === arr, "forEachTruthy should return this for chaining");
     assertEquals(visited, [5, 15, 32, 63, 95]);
   });
 
@@ -1173,7 +509,7 @@ Deno.test("BooleanArray - getInto", async (t) => {
     const out = new Array<boolean>(5);
     const result = arr.getInto(0, 5, out);
 
-    assertEquals(result, arr); // Returns this for chaining
+    assert(result === arr, "getInto should return this for chaining");
     assertEquals(out, [false, true, false, true, false]);
   });
 
@@ -1221,7 +557,7 @@ Deno.test("BooleanArray - clear", async (t) => {
     assertEquals(arr.getCount(true), 4);
 
     const result = arr.clear();
-    assertEquals(result, arr); // Returns this for chaining
+    assert(result === arr, "clear should return this for chaining");
     assertEquals(arr.getCount(true), 0);
     assertEquals(arr.isEmpty(), true);
   });
@@ -1240,156 +576,6 @@ Deno.test("BooleanArray - clear", async (t) => {
     const arr = BooleanArray.fromArray(33, [0, 15, 32]);
     arr.clear();
     assertUnusedBitsZero(arr, "clear");
-  });
-});
-
-Deno.test("BooleanArray - Functional Operations Non-Mutation", async (t) => {
-  await t.step("functional and should not mutate inputs", () => {
-    const a = BooleanArray.fromArray(32, [0, 1]);
-    const b = BooleanArray.fromArray(32, [1, 2]);
-    const aBefore = a.clone();
-    const bBefore = b.clone();
-
-    const result = and(a, b);
-
-    assertEquals(equals(a, aBefore), true);
-    assertEquals(equals(b, bBefore), true);
-    assertEquals(result.get(1), true);
-  });
-
-  await t.step("functional or should not mutate inputs", () => {
-    const a = BooleanArray.fromArray(32, [0]);
-    const b = BooleanArray.fromArray(32, [1]);
-    const aBefore = a.clone();
-    const bBefore = b.clone();
-
-    const result = or(a, b);
-
-    assertEquals(equals(a, aBefore), true);
-    assertEquals(equals(b, bBefore), true);
-    assertEquals(result.get(0), true);
-    assertEquals(result.get(1), true);
-  });
-
-  await t.step("functional xor should not mutate inputs", () => {
-    const a = BooleanArray.fromArray(32, [0, 1]);
-    const b = BooleanArray.fromArray(32, [1, 2]);
-    const aBefore = a.clone();
-    const bBefore = b.clone();
-
-    const result = xor(a, b);
-
-    assertEquals(equals(a, aBefore), true);
-    assertEquals(equals(b, bBefore), true);
-    assertEquals(result.get(0), true);
-    assertEquals(result.get(1), false);
-    assertEquals(result.get(2), true);
-  });
-
-  await t.step("functional nand should not mutate inputs", () => {
-    const a = BooleanArray.fromArray(32, [0, 1]);
-    const b = BooleanArray.fromArray(32, [1, 2]);
-    const aBefore = a.clone();
-    const bBefore = b.clone();
-
-    nand(a, b);
-
-    assertEquals(equals(a, aBefore), true);
-    assertEquals(equals(b, bBefore), true);
-  });
-
-  await t.step("functional nor should not mutate inputs", () => {
-    const a = BooleanArray.fromArray(32, [0]);
-    const b = BooleanArray.fromArray(32, [1]);
-    const aBefore = a.clone();
-    const bBefore = b.clone();
-
-    nor(a, b);
-
-    assertEquals(equals(a, aBefore), true);
-    assertEquals(equals(b, bBefore), true);
-  });
-
-  await t.step("functional xnor should not mutate inputs", () => {
-    const a = BooleanArray.fromArray(32, [0]);
-    const b = BooleanArray.fromArray(32, [1]);
-    const aBefore = a.clone();
-    const bBefore = b.clone();
-
-    xnor(a, b);
-
-    assertEquals(equals(a, aBefore), true);
-    assertEquals(equals(b, bBefore), true);
-  });
-
-  await t.step("functional not should not mutate input", () => {
-    const a = BooleanArray.fromArray(32, [0, 15, 31]);
-    const aBefore = a.clone();
-
-    const result = not(a);
-
-    assertEquals(equals(a, aBefore), true);
-    assertEquals(result.get(0), false);
-    assertEquals(result.get(1), true);
-    assertEquals(result.get(15), false);
-  });
-
-  await t.step("functional difference should not mutate inputs", () => {
-    const a = BooleanArray.fromArray(32, [0, 1, 2]);
-    const b = BooleanArray.fromArray(32, [1, 2, 3]);
-    const aBefore = a.clone();
-    const bBefore = b.clone();
-
-    const result = difference(a, b);
-
-    assertEquals(equals(a, aBefore), true);
-    assertEquals(equals(b, bBefore), true);
-    assertEquals(result.get(0), true);
-    assertEquals(result.get(1), false);
-  });
-});
-
-Deno.test("BooleanArray - Instance Operations Size Mismatch", async (t) => {
-  await t.step("instance and should throw on size mismatch", () => {
-    const a = new BooleanArray(32);
-    const b = new BooleanArray(64);
-    assertThrows(() => a.and(b), RangeError);
-  });
-
-  await t.step("instance or should throw on size mismatch", () => {
-    const a = new BooleanArray(32);
-    const b = new BooleanArray(64);
-    assertThrows(() => a.or(b), RangeError);
-  });
-
-  await t.step("instance xor should throw on size mismatch", () => {
-    const a = new BooleanArray(32);
-    const b = new BooleanArray(64);
-    assertThrows(() => a.xor(b), RangeError);
-  });
-
-  await t.step("instance nand should throw on size mismatch", () => {
-    const a = new BooleanArray(32);
-    const b = new BooleanArray(64);
-    assertThrows(() => a.nand(b), RangeError);
-  });
-
-  await t.step("instance nor should throw on size mismatch", () => {
-    const a = new BooleanArray(32);
-    const b = new BooleanArray(64);
-    assertThrows(() => a.nor(b), RangeError);
-  });
-
-  await t.step("instance xnor should throw on size mismatch", () => {
-    const a = new BooleanArray(32);
-    const b = new BooleanArray(64);
-    assertThrows(() => a.xnor(b), RangeError);
-  });
-
-  await t.step("instance difference should throw on size mismatch", () => {
-    const a = new BooleanArray(32);
-    const b = new BooleanArray(64);
-    assertThrows(() => a.difference(b), RangeError);
   });
 });
 
@@ -1529,169 +715,6 @@ Deno.test("BooleanArray - Boundary-Crossing Range Operations", async (t) => {
   });
 });
 
-Deno.test("BooleanArray - Algebraic Identities", async (t) => {
-  await t.step("xor(a, a) should be empty", () => {
-    const a = BooleanArray.fromArray(64, [0, 10, 20, 30, 63]);
-    const result = xor(a, a);
-    assertEquals(result.isEmpty(), true);
-    assertEquals(result.getCount(true), 0);
-  });
-
-  await t.step("difference(a, a) should be empty", () => {
-    const a = BooleanArray.fromArray(64, [5, 15, 25, 35]);
-    const result = difference(a, a);
-    assertEquals(result.isEmpty(), true);
-    assertEquals(result.getCount(true), 0);
-  });
-
-  await t.step("De Morgan: NOT(a OR b) equals (NOT a) AND (NOT b)", () => {
-    const a = BooleanArray.fromArray(32, [0, 5, 10]);
-    const b = BooleanArray.fromArray(32, [5, 15, 20]);
-
-    const left = not(or(a, b));
-    const right = and(not(a), not(b));
-
-    assertEquals(equals(left, right), true);
-  });
-
-  await t.step("De Morgan: NOT(a AND b) equals (NOT a) OR (NOT b)", () => {
-    const a = BooleanArray.fromArray(32, [0, 5, 10]);
-    const b = BooleanArray.fromArray(32, [5, 15, 20]);
-
-    const left = not(and(a, b));
-    const right = or(not(a), not(b));
-
-    assertEquals(equals(left, right), true);
-  });
-
-  await t.step("a AND a equals a", () => {
-    const a = BooleanArray.fromArray(64, [0, 31, 32, 63]);
-    const result = and(a, a);
-    assertEquals(equals(result, a), true);
-  });
-
-  await t.step("a OR a equals a", () => {
-    const a = BooleanArray.fromArray(64, [0, 31, 32, 63]);
-    const result = or(a, a);
-    assertEquals(equals(result, a), true);
-  });
-
-  await t.step("NOT(NOT(a)) equals a", () => {
-    const a = BooleanArray.fromArray(33, [0, 10, 20, 32]);
-    const result = not(not(a));
-    assertEquals(equals(result, a), true);
-  });
-});
-
-Deno.test("BooleanArray - Equals Properties", async (t) => {
-  await t.step("equals is reflexive", () => {
-    const a = BooleanArray.fromArray(64, [0, 10, 20, 30]);
-    assertEquals(equals(a, a), true);
-    assertEquals(a.equals(a), true);
-  });
-
-  await t.step("equals is symmetric", () => {
-    const a = BooleanArray.fromArray(64, [0, 10]);
-    const b = BooleanArray.fromArray(64, [0, 10]);
-
-    assertEquals(equals(a, b), equals(b, a));
-    assertEquals(a.equals(b), b.equals(a));
-  });
-
-  await t.step("equals is transitive", () => {
-    const a = BooleanArray.fromArray(32, [5, 15]);
-    const b = BooleanArray.fromArray(32, [5, 15]);
-    const c = BooleanArray.fromArray(32, [5, 15]);
-
-    assertEquals(equals(a, b), true);
-    assertEquals(equals(b, c), true);
-    assertEquals(equals(a, c), true);
-  });
-
-  await t.step("equals returns false for size mismatch", () => {
-    const a = new BooleanArray(32);
-    const b = new BooleanArray(64);
-
-    assertEquals(equals(a, b), false);
-    assertEquals(a.equals(b), false);
-  });
-
-  await t.step("equals returns false for different content", () => {
-    const a = BooleanArray.fromArray(32, [0, 10]);
-    const b = BooleanArray.fromArray(32, [0, 11]);
-
-    assertEquals(equals(a, b), false);
-    assertEquals(a.equals(b), false);
-  });
-});
-
-Deno.test("BooleanArray - fromUint32Array with number[]", async (t) => {
-  await t.step("should accept number[] with same semantics as Uint32Array", () => {
-    const size = 64;
-    const numberArray = [255, 4294967295]; // 0xFF, 0xFFFFFFFF
-    const arr = BooleanArray.fromUint32Array(size, numberArray);
-
-    assertEquals(arr.size, 64);
-    // First chunk: 255 = 0b11111111
-    for (let i = 0; i < 8; i++) {
-      assertEquals(arr.get(i), true);
-    }
-    for (let i = 8; i < 32; i++) {
-      assertEquals(arr.get(i), false);
-    }
-    // Second chunk: all bits set
-    for (let i = 32; i < 64; i++) {
-      assertEquals(arr.get(i), true);
-    }
-  });
-
-  await t.step("should clear unused bits for non-multiple-of-32 sizes", () => {
-    const size = 35;
-    const numberArray = [4294967295, 4294967295]; // All bits set
-    const arr = BooleanArray.fromUint32Array(size, numberArray);
-
-    assertEquals(arr.size, 35);
-    // First 32 bits all true
-    for (let i = 0; i < 32; i++) {
-      assertEquals(arr.get(i), true);
-    }
-    // Next 3 bits (32, 33, 34) should be true
-    assertEquals(arr.get(32), true);
-    assertEquals(arr.get(33), true);
-    assertEquals(arr.get(34), true);
-
-    // Verify unused bits are cleared
-    assertUnusedBitsZero(arr, "fromUint32Array with number[]");
-  });
-});
-
-Deno.test("BooleanArray - fromArray Boolean Type Guard", async (t) => {
-  await t.step("should reject mixed-type boolean arrays", () => {
-    // @ts-ignore - Testing runtime behavior
-    assertThrows(() => BooleanArray.fromArray(10, [true, false, 1, true]), TypeError);
-
-    // @ts-ignore - Testing runtime behavior
-    assertThrows(() => BooleanArray.fromArray(10, [true, "false", true]), TypeError);
-
-    // @ts-ignore - Testing runtime behavior
-    assertThrows(() => BooleanArray.fromArray(10, [false, null, true]), TypeError);
-  });
-
-  await t.step("should accept pure boolean arrays", () => {
-    const arr = BooleanArray.fromArray(5, [true, false, true, false, true]);
-    assertEquals(arr.get(0), true);
-    assertEquals(arr.get(1), false);
-    assertEquals(arr.get(2), true);
-  });
-
-  await t.step("should accept pure number arrays", () => {
-    const arr = BooleanArray.fromArray(10, [0, 2, 4, 6, 8]);
-    assertEquals(arr.get(0), true);
-    assertEquals(arr.get(1), false);
-    assertEquals(arr.get(2), true);
-  });
-});
-
 Deno.test("BooleanArray - truthyIndicesInto", async (t) => {
   await t.step("should copy truthy indices into preallocated Uint32Array", () => {
     const arr = BooleanArray.fromArray(100, [5, 15, 32, 63, 95]);
@@ -1783,53 +806,22 @@ Deno.test("BooleanArray - truthyIndicesInto", async (t) => {
     const arr = new BooleanArray(100);
     const out = new Uint32Array(10);
 
-    // Negative startIndex
     assertThrows(() => arr.truthyIndicesInto(out, -1), RangeError);
-
-    // Float indices
     assertThrows(() => arr.truthyIndicesInto(out, 1.5), TypeError);
     assertThrows(() => arr.truthyIndicesInto(out, 0, 10.5), TypeError);
-
-    // startIndex > endIndex
     assertThrows(() => arr.truthyIndicesInto(out, 50, 20), RangeError);
-
-    // Out of bounds
     assertThrows(() => arr.truthyIndicesInto(out, 0, 101), RangeError);
   });
 
-  await t.step("should match truthyIndices generator output", () => {
-    const arr = BooleanArray.fromArray(100, [0, 10, 31, 32, 50, 63, 64, 99]);
-    const generatorResult = [...arr.truthyIndices()];
-    const out = new Uint32Array(generatorResult.length);
+  await t.step("should handle large arrays", () => {
+    const arr = new BooleanArray(100000);
+    arr.fill(true);
+    const out = new Uint32Array(64);
     const count = arr.truthyIndicesInto(out);
 
-    assertEquals(count, generatorResult.length);
-    for (let i = 0; i < count; i++) {
-      assertEquals(out[i], generatorResult[i]);
-    }
-  });
-
-  await t.step("should match truthyIndices generator output with range", () => {
-    const arr = BooleanArray.fromArray(100, [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]);
-    const generatorResult = [...arr.truthyIndices(20, 80)];
-    const out = new Uint32Array(10);
-    const count = arr.truthyIndicesInto(out, 20, 80);
-
-    assertEquals(count, generatorResult.length);
-    for (let i = 0; i < count; i++) {
-      assertEquals(out[i], generatorResult[i]);
-    }
-  });
-
-  await t.step("should handle dense pattern", () => {
-    const arr = new BooleanArray(100);
-    arr.set(20, 30, true); // 30 consecutive bits
-    const out = new Uint32Array(50);
-    const count = arr.truthyIndicesInto(out);
-
-    assertEquals(count, 30);
-    for (let i = 0; i < 30; i++) {
-      assertEquals(out[i], 20 + i);
+    assertEquals(count, 100000);
+    for (let i = 0; i < 64; i++) {
+      assertEquals(out[i], i);
     }
   });
 
@@ -1851,156 +843,6 @@ Deno.test("BooleanArray - truthyIndicesInto", async (t) => {
     const count = arr.truthyIndicesInto(out);
 
     assertEquals(count, 0);
-  });
-});
-
-Deno.test("BooleanArray - Additional Validation Edge Cases", async (t) => {
-  await t.step("should use assertIsSafeValue return value correctly", () => {
-    const arr = new BooleanArray(10);
-
-    // The pattern: if (assertIsSafeValue(index) >= this.size)
-    // This relies on assertIsSafeValue returning the validated value
-    assertThrows(() => arr.get(10), RangeError); // 10 >= 10
-    assertEquals(arr.get(9), false); // 9 < 10, should work
-
-    // Same for factory methods
-    assertThrows(() => BooleanArray.fromArray(5, [0, 5]), RangeError);
-    const valid = BooleanArray.fromArray(5, [0, 4]);
-    assertEquals(valid.get(4), true);
-  });
-
-  await t.step("should validate types before bounds", () => {
-    const arr = new BooleanArray(100);
-
-    // Type error should come before bounds error
-    assertThrows(() => arr.get(NaN), TypeError); // Not RangeError
-    assertThrows(() => arr.set(Infinity, true), TypeError); // Not RangeError
-
-    // For fromArray with invalid type that's also out of bounds
-    assertThrows(() => BooleanArray.fromArray(10, [NaN]), TypeError);
-    assertThrows(() => BooleanArray.fromArray(10, [Infinity]), TypeError);
-  });
-
-  await t.step("should reject size zero in all factory methods", () => {
-    assertThrows(() => BooleanArray.fromArray(0, []), RangeError);
-    assertThrows(() => BooleanArray.fromObjects(0, "id", []), RangeError);
-    assertThrows(() => BooleanArray.fromUint32Array(0, new Uint32Array(0)), RangeError);
-  });
-
-  await t.step("should handle maximum safe index values", () => {
-    // Test with 0xFFFFFFFF - the maximum Uint32 value
-    assertEquals(BooleanArray.assertIsSafeValue(0xFFFFFFFF), 0xFFFFFFFF);
-    assertEquals(BooleanArray.isSafeValue(0xFFFFFFFF), true);
-
-    // Test rejection just above
-    assertThrows(() => BooleanArray.assertIsSafeValue(0x100000000), RangeError);
-    assertEquals(BooleanArray.isSafeValue(0x100000000), false);
-
-    // Test maximum safe size
-    assertEquals(BooleanArray.assertIsSafeSize(BooleanArray.MAX_SAFE_SIZE), BooleanArray.MAX_SAFE_SIZE);
-    assertEquals(BooleanArray.isSafeSize(BooleanArray.MAX_SAFE_SIZE), true);
-
-    // Test rejection just above
-    assertThrows(() => BooleanArray.assertIsSafeSize(BooleanArray.MAX_SAFE_SIZE + 1), RangeError);
-    assertEquals(BooleanArray.isSafeSize(BooleanArray.MAX_SAFE_SIZE + 1), false);
-  });
-
-  await t.step("should return EMPTY_ARRAY for zero-length gets", () => {
-    const arr = new BooleanArray(10);
-    const result = arr.get(5, 0);
-
-    assertEquals(result.length, 0);
-    assertEquals(result, []); // Should be empty array
-    // Verify it's the same reference (optimization check)
-    assertEquals(result === EMPTY_ARRAY, true);
-
-    // Test at different positions
-    const result2 = arr.get(0, 0);
-    assertEquals(result2 === EMPTY_ARRAY, true);
-
-    const result3 = arr.get(9, 0);
-    assertEquals(result3 === EMPTY_ARRAY, true);
-  });
-
-  await t.step("should validate all parameters in range operations", () => {
-    const arr = new BooleanArray(100);
-
-    // Both startIndex and count should be validated in get
-    assertThrows(() => arr.get(NaN, 5), TypeError); // startIndex invalid
-    assertThrows(() => arr.get(0, NaN), TypeError); // count invalid
-    assertThrows(() => arr.get(1.5, 5), TypeError); // startIndex not integer
-    assertThrows(() => arr.get(0, 5.5), TypeError); // count not integer
-
-    // Both parameters validated in set
-    assertThrows(() => arr.set(NaN, 5, true), TypeError);
-    assertThrows(() => arr.set(0, NaN, true), TypeError);
-    assertThrows(() => arr.set(1.5, 5, true), TypeError);
-    assertThrows(() => arr.set(0, 5.5, true), TypeError);
-
-    // Same for getInto
-    const out = new Array<boolean>(10);
-    assertThrows(() => arr.getInto(NaN, 5, out), TypeError);
-    assertThrows(() => arr.getInto(0, NaN, out), TypeError);
-    assertThrows(() => arr.getInto(1.5, 5, out), TypeError);
-    assertThrows(() => arr.getInto(0, 5.5, out), TypeError);
-  });
-
-  await t.step("should validate negative values are rejected consistently", () => {
-    const arr = new BooleanArray(100);
-
-    // Negative indices should be rejected
-    assertThrows(() => arr.get(-1), RangeError);
-    assertThrows(() => arr.set(-1, true), RangeError);
-    assertThrows(() => arr.toggle(-1), RangeError);
-
-    // Negative in ranges
-    assertThrows(() => arr.get(-5, 10), RangeError);
-    assertThrows(() => arr.set(-5, 10, true), RangeError);
-
-    // Negative counts
-    assertThrows(() => arr.get(0, -1), RangeError);
-    assertThrows(() => arr.set(0, -1, true), RangeError);
-
-    // In factory methods
-    assertThrows(() => BooleanArray.fromArray(100, [-1]), RangeError);
-    assertThrows(() => BooleanArray.fromArray(100, [-100]), RangeError);
-  });
-
-  await t.step("should handle boundary conditions for size validation", () => {
-    // Size exactly at MAX_SAFE_SIZE should work
-    const largeSize = BooleanArray.MAX_SAFE_SIZE;
-    assertEquals(BooleanArray.assertIsSafeSize(largeSize), largeSize);
-    assertEquals(BooleanArray.isSafeSize(largeSize), true);
-
-    // Size at 1 (minimum) should work
-    assertEquals(BooleanArray.assertIsSafeSize(1), 1);
-    assertEquals(BooleanArray.isSafeSize(1), true);
-    const tiny = new BooleanArray(1);
-    assertEquals(tiny.size, 1);
-
-    // Size at 0 should fail
-    assertThrows(() => BooleanArray.assertIsSafeSize(0), RangeError);
-    assertEquals(BooleanArray.isSafeSize(0), false);
-    assertThrows(() => new BooleanArray(0), RangeError);
-  });
-
-  await t.step("should validate combined bounds and type errors", () => {
-    // When both type and bounds are wrong, type error should come first
-    const arr = new BooleanArray(10);
-
-    // Index that's both not a number AND out of bounds
-    assertThrows(() => arr.get(NaN), TypeError); // Not RangeError
-    assertThrows(() => arr.get(Infinity), TypeError);
-
-    // In fromObjects with bad types
-    assertThrows(
-      () => BooleanArray.fromObjects(10, "id", [{ id: NaN }]),
-      TypeError,
-    );
-    assertThrows(
-      () => BooleanArray.fromObjects(10, "id", [{ id: Infinity }]),
-      TypeError,
-    );
   });
 });
 
@@ -2037,43 +879,9 @@ Deno.test("BooleanArray - isFull", async (t) => {
     assertEquals(arr1.isFull(), false);
     arr1.set(0, true);
     assertEquals(arr1.isFull(), true);
-
-    // Size 31: almost full chunk
-    const arr31 = new BooleanArray(31);
-    arr31.fill(true);
-    assertEquals(arr31.isFull(), true);
   });
 
-  await t.step("should handle chunk boundary correctly", () => {
-    const arr = new BooleanArray(32);
-    arr.fill(true);
-    assertEquals(arr.isFull(), true);
-
-    arr.set(31, false);
-    assertEquals(arr.isFull(), false);
-
-    arr.set(31, true);
-    arr.set(0, false);
-    assertEquals(arr.isFull(), false);
-  });
-
-  await t.step("should detect false bit in middle chunk of multi-chunk array", () => {
-    // Size 100 = 4 chunks (0-31, 32-63, 64-95, 96-99)
-    const arr = new BooleanArray(100);
-    arr.fill(true);
-    assertEquals(arr.isFull(), true);
-
-    // Clear a bit in the middle chunk (chunk 1: bits 32-63)
-    arr.set(50, false);
-    assertEquals(arr.isFull(), false);
-
-    // Restore and clear in chunk 2 (bits 64-95)
-    arr.set(50, true);
-    arr.set(80, false);
-    assertEquals(arr.isFull(), false);
-  });
-
-  await t.step("should be complementary to isEmpty for extreme states", () => {
+  await t.step("should be consistent with isEmpty", () => {
     const arr = new BooleanArray(100);
 
     // Empty array
@@ -2177,7 +985,7 @@ Deno.test("BooleanArray - forEachFalsy", async (t) => {
     const visited: number[] = [];
     const result = arr.forEachFalsy((index) => visited.push(index));
 
-    assertEquals(result, arr); // Returns this for chaining
+    assert(result === arr, "forEachFalsy should return this for chaining");
     assertEquals(visited, [2, 5, 8]);
   });
 
@@ -2388,7 +1196,7 @@ Deno.test("BooleanArray - copyFrom", async (t) => {
     const dst = new BooleanArray(64);
 
     const result = dst.copyFrom(src);
-    assertEquals(result, dst); // Returns this for chaining
+    assert(result === dst, "copyFrom should return this for chaining");
     assertEquals(equals(src, dst), true);
   });
 
@@ -2458,48 +1266,22 @@ Deno.test("BooleanArray - copyFrom", async (t) => {
     assertEquals(arr.get(22), true);
   });
 
-  await t.step("should throw on size mismatch", () => {
-    const src = new BooleanArray(64);
-    const dst = new BooleanArray(100);
-    assertThrows(() => dst.copyFrom(src), RangeError, "Arrays must have the same size");
-  });
-
-  await t.step("should throw on source range out of bounds", () => {
-    const src = new BooleanArray(100);
-    const dst = new BooleanArray(100);
-    assertThrows(() => dst.copyFrom(src, 90, 0, 20), RangeError);
-  });
-
-  await t.step("should throw on destination range out of bounds", () => {
-    const src = new BooleanArray(100);
-    const dst = new BooleanArray(100);
-    assertThrows(() => dst.copyFrom(src, 0, 90, 20), RangeError);
-  });
-
-  await t.step("should validate parameter types", () => {
-    const src = new BooleanArray(100);
-    const dst = new BooleanArray(100);
-    assertThrows(() => dst.copyFrom(src, NaN), TypeError);
-    assertThrows(() => dst.copyFrom(src, 0, NaN), TypeError);
-    assertThrows(() => dst.copyFrom(src, 0, 0, NaN), TypeError);
-    assertThrows(() => dst.copyFrom(src, 1.5), TypeError);
-  });
-
-  await t.step("should handle zero count as no-op", () => {
-    const src = BooleanArray.fromArray(64, [0, 31, 63]);
-    const dst = new BooleanArray(64);
-    dst.copyFrom(src, 0, 0, 0);
-    assertEquals(dst.isEmpty(), true);
-  });
-
-  await t.step("should handle cross-chunk boundaries correctly", () => {
-    const src = new BooleanArray(100);
-    src.set(28, 10, true); // 28-37, crosses chunk boundary at 32
-    const dst = new BooleanArray(100);
+  await t.step("should handle multiple chunks with partial overlap", () => {
+    const src = BooleanArray.fromArray(128, [10, 20, 30, 40, 50, 60, 70]);
+    const dst = new BooleanArray(128);
 
     dst.copyFrom(src, 28, 60, 10);
 
-    for (let i = 60; i < 70; i++) assertEquals(dst.get(i), true);
+    assertEquals(dst.get(60), false);
+    assertEquals(dst.get(61), false);
+    assertEquals(dst.get(62), true);
+    assertEquals(dst.get(63), false);
+    assertEquals(dst.get(64), false);
+    assertEquals(dst.get(65), false);
+    assertEquals(dst.get(66), false);
+    assertEquals(dst.get(67), false);
+    assertEquals(dst.get(68), false);
+    assertEquals(dst.get(69), false);
     assertEquals(dst.get(59), false);
     assertEquals(dst.get(70), false);
   });
@@ -2523,7 +1305,7 @@ Deno.test("BooleanArray - setFromIndices", async (t) => {
     const arr = new BooleanArray(10);
     const result = arr.setFromIndices([1, 3, 5, 7, 9]);
 
-    assertEquals(result, arr); // Returns this for chaining
+    assert(result === arr, "setFromIndices should return this for chaining");
     assertEquals(arr.get(0), false);
     assertEquals(arr.get(1), true);
     assertEquals(arr.get(2), false);
@@ -2697,26 +1479,7 @@ Deno.test("BooleanArray - indexOf/lastIndexOf edge cases (32-bit truncation regr
     assertEquals(arr.lastIndexOf(true, -91), -1); // 100 + (-91) = 9 → no true before 9
 
     // Extremely negative (would overflow with size addition in naive impl)
-    assertEquals(arr.lastIndexOf(true, -100), -1); // 100 + (-100) = 0 → no true at 0
-    assertEquals(arr.lastIndexOf(true, -101), -1); // Adjusted index < 0 → -1
-    assertEquals(arr.lastIndexOf(true, -1000), -1);
-  });
-
-  await t.step("indexOf: negative fromIndex edge cases", () => {
-    const arr = new BooleanArray(100);
-    arr.set(10, true);
-    arr.set(50, true);
-    arr.set(90, true);
-
-    assertEquals(arr.indexOf(true, -90), 10); // 100 + (-90) = 10 → finds 10
-    assertEquals(arr.indexOf(true, -50), 50); // 100 + (-50) = 50 → finds 50
-    assertEquals(arr.indexOf(true, -10), 90); // 100 + (-10) = 90 → finds 90
-    assertEquals(arr.indexOf(true, -5), -1); // 100 + (-5) = 95 → no true at 95+
-
-    // Extremely negative clamps to 0
-    assertEquals(arr.indexOf(true, -100), 10); // Clamps to 0 → finds 10
-    assertEquals(arr.indexOf(true, -101), 10); // Clamps to 0 → finds 10
-    assertEquals(arr.indexOf(true, -1000), 10);
+    assertEquals(arr.lastIndexOf(true, -1000000000), -1);
   });
 
   await t.step("indexOf/lastIndexOf: chunk boundary behavior", () => {
@@ -2898,53 +1661,224 @@ Deno.test("BooleanArray - indexOf/lastIndexOf user-facing scenarios", async (t) 
   });
 });
 
-Deno.test("BooleanArray - equals() with corrupted unused bits", async (t) => {
-  await t.step("equals ignores unused bits in last chunk", () => {
-    // Size 33 = 2 chunks, with only 1 bit valid in chunk 1
-    const a = new BooleanArray(33);
-    const b = new BooleanArray(33);
+Deno.test("BooleanArray - Symbol.toStringTag", async (t) => {
+  await t.step("should return correct string tag", () => {
+    const arr = new BooleanArray(32);
+    assertEquals(Object.prototype.toString.call(arr), "[object BooleanArray]");
+    assertEquals(arr[Symbol.toStringTag], "BooleanArray");
+  });
+});
 
-    a.set(0, true);
-    a.set(32, true);
-    b.set(0, true);
-    b.set(32, true);
-
-    // Before corruption - should be equal
-    assertEquals(a.equals(b), true);
-    assertEquals(equals(a, b), true);
-
-    // Corrupt b's unused bits (bits 1-31 of chunk 1 are unused for size=33)
-    b.buffer[1] = b.buffer[1]! | 0xFFFFFFFE;
-
-    // After corruption - should STILL be equal (unused bits don't matter)
-    assertEquals(a.equals(b), true);
-    assertEquals(equals(a, b), true);
-
-    // Verify logical content is the same
-    assertEquals(a.get(32), b.get(32));
-    assertEquals(a.getCount(true), b.getCount(true));
+Deno.test("BooleanArray - isSafeIndex", async (t) => {
+  await t.step("should return true for valid indices", () => {
+    const arr = new BooleanArray(100);
+    assertEquals(arr.isSafeIndex(0), true);
+    assertEquals(arr.isSafeIndex(50), true);
+    assertEquals(arr.isSafeIndex(99), true);
   });
 
-  await t.step("equals detects difference in valid bits", () => {
-    const a = new BooleanArray(33);
-    const b = new BooleanArray(33);
+  await t.step("should return false for invalid indices", () => {
+    const arr = new BooleanArray(100);
+    assertEquals(arr.isSafeIndex(-1), false);
+    assertEquals(arr.isSafeIndex(100), false);
+    assertEquals(arr.isSafeIndex(NaN), false);
+    assertEquals(arr.isSafeIndex(Infinity), false);
+    assertEquals(arr.isSafeIndex(1.5), false);
+  });
+});
 
-    a.set(32, true);
-    // b has bit 32 as false (default)
+Deno.test("BooleanArray - toString", async (t) => {
+  await t.step("should return buffer string representation", () => {
+    // Single chunk: bit 0 set = buffer value 1
+    const arr = new BooleanArray(32);
+    arr.set(0, true);
+    assertEquals(arr.toString(), "1");
 
-    assertEquals(a.equals(b), false);
+    // Multi-chunk: bit 0 and bit 32 set = buffer values [1, 1]
+    const arr2 = new BooleanArray(64);
+    arr2.set(0, true);
+    arr2.set(32, true);
+    assertEquals(arr2.toString(), "1,1");
+
+    // Empty array: all zeros
+    const arr3 = new BooleanArray(64);
+    assertEquals(arr3.toString(), "0,0");
+  });
+});
+
+Deno.test("BooleanArray - copyFrom edge cases", async (t) => {
+  await t.step("should be no-op when count is zero", () => {
+    const arr = BooleanArray.fromArray(64, [1, 3, 5]);
+    const result = arr.copyFrom(arr, 0, 0, 0);
+    assertEquals(result, arr);
+    assertEquals(arr.getCount(true), 3);
   });
 
-  await t.step("equals handles size=32 (full last chunk)", () => {
-    const a = new BooleanArray(32);
+  await t.step("should throw on size mismatch", () => {
+    const a = new BooleanArray(64);
     const b = new BooleanArray(32);
+    assertThrows(() => a.copyFrom(b), RangeError);
+  });
 
-    a.set(31, true);
-    b.set(31, true);
+  await t.step("should throw on source range exceeds size", () => {
+    const arr = new BooleanArray(64);
+    assertThrows(() => arr.copyFrom(arr, 60, 0, 10), RangeError);
+  });
 
-    assertEquals(a.equals(b), true);
+  await t.step("should throw on dest range exceeds size", () => {
+    const arr = new BooleanArray(64);
+    assertThrows(() => arr.copyFrom(arr, 0, 60, 10), RangeError);
+  });
 
-    b.set(0, true);
-    assertEquals(a.equals(b), false);
+  await t.step("should handle aligned overlapping self-copy", () => {
+    const arr = new BooleanArray(128);
+    arr.set(0, 32, true);
+    arr.copyFrom(arr, 0, 32, 32);
+    for (let i = 32; i < 64; i++) assertEquals(arr.get(i), true);
+  });
+
+  await t.step("should use copyWithin for overlapping aligned ranges", () => {
+    const arr = new BooleanArray(128);
+    arr.set(0, 64, true);
+    arr.copyFrom(arr, 0, 32, 64); // overlap: chunk 0-1 to 1-2
+    for (let i = 32; i < 96; i++) assertEquals(arr.get(i), true);
+  });
+
+  await t.step("should handle backward unaligned overlapping self-copy", () => {
+    const arr = BooleanArray.fromArray(100, [5, 6, 7, 8, 9]);
+    arr.copyFrom(arr, 5, 7, 5);
+    assertEquals(arr.get(7), true);
+    assertEquals(arr.get(8), true);
+    assertEquals(arr.get(9), true);
+    assertEquals(arr.get(10), true);
+    assertEquals(arr.get(11), true);
+  });
+
+  await t.step("should clear bits when backward copy hits false values", () => {
+    const arr = new BooleanArray(64);
+    arr.fill(true);
+    arr.set(1, false);
+    arr.set(3, false);
+    arr.copyFrom(arr, 0, 1, 5); // dest > source, overlapping backward copy
+    assertEquals(arr.get(1), true);
+    assertEquals(arr.get(2), false);
+    assertEquals(arr.get(3), true);
+    assertEquals(arr.get(4), false);
+    assertEquals(arr.get(5), true);
+  });
+});
+
+Deno.test("BooleanArray - forEach error paths", async (t) => {
+  await t.step("should throw when range exceeds size", () => {
+    const arr = new BooleanArray(100);
+    assertThrows(() => arr.forEach(() => {}, 90, 20), RangeError);
+  });
+});
+
+Deno.test("BooleanArray - indexOf early exit on corrupted unused bits", async (t) => {
+  await t.step("should return -1 when only unused bits are set", () => {
+    const arr = new BooleanArray(33);
+    arr.buffer[1] = 0x80000000;
+    assertEquals(arr.indexOf(true), -1);
+  });
+
+  await t.step("should return -1 when first chunk yields index >= size", () => {
+    const arr = new BooleanArray(33);
+    arr.buffer[1] = 0x80000000;
+    assertEquals(arr.indexOf(true, 32), -1);
+  });
+});
+
+Deno.test("BooleanArray - truthyIndices early exit", async (t) => {
+  await t.step("should stop when absoluteIndex exceeds endIndex", () => {
+    const arr = new BooleanArray(33);
+    arr.buffer[1] = 0x80000000;
+    assertEquals([...arr.truthyIndices(0, 33)], []);
+  });
+});
+
+Deno.test("BooleanArray - setRange edge cases", async (t) => {
+  await t.step("should set exactly 32 bits at offset 0", () => {
+    const arr = new BooleanArray(64);
+    arr.set(0, 32, true);
+    assertEquals(arr.getCount(true), 32);
+    assertEquals(arr.buffer[0], 0xFFFFFFFF);
+  });
+
+  await t.step("should clear small cross-chunk range", () => {
+    const arr = new BooleanArray(100);
+    arr.fill(true);
+    arr.set(30, 5, false);
+    for (let i = 30; i < 35; i++) assertEquals(arr.get(i), false);
+    assertEquals(arr.get(29), true);
+    assertEquals(arr.get(35), true);
+  });
+
+  await t.step("should clear large cross-chunk range", () => {
+    const arr = new BooleanArray(200);
+    arr.fill(true);
+    arr.set(10, 100, false);
+    for (let i = 10; i < 110; i++) assertEquals(arr.get(i), false);
+    assertEquals(arr.get(9), true);
+    assertEquals(arr.get(110), true);
+  });
+
+  await t.step("should clear range ending on chunk boundary", () => {
+    const arr = new BooleanArray(96);
+    arr.fill(true);
+    arr.set(1, 63, false); // ends at bit 63 (offset 31)
+    for (let i = 1; i < 64; i++) assertEquals(arr.get(i), false);
+    assertEquals(arr.get(0), true);
+    assertEquals(arr.get(64), true);
+  });
+});
+
+Deno.test("BooleanArray - Property: count consistency", async (t) => {
+  await t.step("getCount(true) + getCount(false) === size for random arrays", () => {
+    for (let trial = 0; trial < 20; trial++) {
+      const size = Math.floor(Math.random() * 200) + 1;
+      const arr = new BooleanArray(size);
+      for (let i = 0; i < size; i++) {
+        if (Math.random() > 0.5) arr.set(i, true);
+      }
+      assertEquals(arr.getCount(true) + arr.getCount(false), size);
+    }
+  });
+});
+
+Deno.test("BooleanArray - Property: fill consistency", async (t) => {
+  await t.step("fill(true) makes isFull() true", () => {
+    const sizes = [1, 31, 32, 33, 64, 65, 100];
+    for (const size of sizes) {
+      const arr = new BooleanArray(size);
+      arr.fill(true);
+      assertEquals(arr.isFull(), true);
+      assertEquals(arr.isEmpty(), false);
+    }
+  });
+
+  await t.step("fill(false) makes isEmpty() true", () => {
+    const sizes = [1, 31, 32, 33, 64, 65, 100];
+    for (const size of sizes) {
+      const arr = new BooleanArray(size);
+      arr.fill(true);
+      arr.fill(false);
+      assertEquals(arr.isEmpty(), true);
+      assertEquals(arr.isFull(), false);
+    }
+  });
+});
+
+Deno.test("BooleanArray - Property: unused bits invariant", async (t) => {
+  await t.step("unused bits remain zero after operations", () => {
+    const sizes = [1, 17, 33, 65, 97];
+    for (const size of sizes) {
+      const arr = new BooleanArray(size);
+      arr.fill(true);
+      const count = Math.min(10, size);
+      arr.set(0, count, false);
+      arr.toggle(size - 1);
+      assertUnusedBitsZero(arr, `size ${size} after operations`);
+    }
   });
 });

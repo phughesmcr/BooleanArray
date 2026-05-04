@@ -12,5 +12,5 @@ Support is limited to the resources listed above.
 
 [gh-issue]: https://github.com/phughesmcr/BooleanArray/issues/new/choose
 [gh-bug]: https://github.com/phughesmcr/BooleanArray/issues/new?assignees=&labels=Issue-Bug&template=bug_report.md&title=
-[gh-feature]: https://github.com/phughesmcr/BooleanArray/issues/new?assignees=&labels=Issue-Feature&template=Feature_Request.md&title=
+[gh-feature]: https://github.com/phughesmcr/BooleanArray/issues/new?assignees=&labels=Issue-Feature&template=feature_request.md&title=
 [contributor]: https://github.com/phughesmcr/BooleanArray/blob/main/CONTRIBUTING.md

@@ -34,7 +34,7 @@ console.log(array.get(0, 20));
 
 // get the population count
 console.log("Getting the population count (should be 10)");
-console.log(array.getTruthyCount());
+console.log(array.getCount(true));
 
 // setting the 33rd bit to true
 console.log("Setting the 33rd bit to true");
@@ -54,7 +54,7 @@ console.log(array.get(33));
 
 // get the population count
 console.log("Getting the population count (should be 12)");
-console.log(array.getTruthyCount());
+console.log(array.getCount(true));
 
 // unset the 1st bit
 console.log("Unsetting the 1st bit");
@@ -62,7 +62,7 @@ array.set(0, false);
 
 // get the population count
 console.log("Getting the population count (should be 11)");
-console.log(array.getTruthyCount());
+console.log(array.getCount(true));
 
 // get first set bit
 console.log("Getting the first set bit (should be 1 - the 2nd bit)");
